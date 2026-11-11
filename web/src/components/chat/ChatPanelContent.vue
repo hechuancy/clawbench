@@ -125,6 +125,8 @@
       :currentSessionRunning="identity.runningSessions.value.has(identity.currentSessionId.value)"
       :currentModelId="identity.currentModelId.value"
       :currentModelName="identity.currentModelName.value"
+      :currentThinkingEffortName="identity.currentThinkingEffortName.value"
+      :showThinkingInfo="thinkingInfoVisible"
       :currentModeName="identity.currentModeName.value"
       :currentTransport="identity.currentTransport.value"
       :currentAgentId="identity.currentAgentId.value"
@@ -406,7 +408,21 @@ const emit = defineEmits(['open', 'message', 'task-card-click', 'open-session-se
 // ── Singletons ──
 const identity = useSessionIdentity()
 const agentsComposable = useAgents()
-const { agents: agentsList, getAgent, getAgentBackend, getAgentName, getAgentAvatar } = agentsComposable
+const { agents: agentsList, getAgent, getAgentBackend, getAgentName, getAgentAvatar, getAgentThinkingEffortLevels } = agentsComposable
+
+/** Whether the input bar's info row should show the thinking-effort chip.
+ *  Show when anything is known about the effort landscape: a live/resolved
+ *  current level, session-reported levels (ACP), or the agent's static
+ *  BackendSpec list (CLI). Hide for backends without effort support (e.g.
+ *  cursor encodes effort in the model id) and for an ACP agent that has
+ *  reported nothing yet — a chip into an empty drawer tab is a dead end
+ *  (same rule as the drawer's extra tab). The group branch of the info row
+ *  never renders the chip regardless; this only gates the single-chat one. */
+const thinkingInfoVisible = computed(() => {
+  if (identity.currentThinkingEffortName.value) return true
+  if (identity.availableThinkingEfforts.value.length > 0) return true
+  return getAgentThinkingEffortLevels(identity.currentAgentId.value).length > 0
+})
 
 /** Whether the current agent's backend can join a running turn. Drives the
  *  queued bubble's single action: "insert into the current reply" vs

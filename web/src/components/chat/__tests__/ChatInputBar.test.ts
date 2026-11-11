@@ -1754,6 +1754,57 @@ describe('ChatInputBar', () => {
     expect(wrapper.find('.session-info-model').text()).toContain('chat.sessionInfo.default')
   })
 
+  it('shows the thinking-effort chip with the level the next turn will run', async () => {
+    // currentThinkingEffortName is already resolved by the session identity
+    // (session pick > per-model memory > agent default); the chip only
+    // displays it.
+    const wrapper = mountBar({ currentModelName: 'gpt-4', currentThinkingEffortName: 'High', showThinkingInfo: true })
+    await wrapper.vm.$nextTick()
+    const chip = wrapper.find('.session-info-thinking')
+    expect(chip.exists()).toBe(true)
+    expect(chip.text()).toContain('High')
+  })
+
+  it('thinking chip shows the Default placeholder when no explicit level is in force', async () => {
+    // Nothing configured → the agent picks its own level; the chip must not
+    // render blank. (This suite's i18n stub renders the raw key.)
+    const wrapper = mountBar({ currentModelName: 'gpt-4', currentThinkingEffortName: '', showThinkingInfo: true })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.session-info-thinking').text()).toContain('chat.sessionInfo.default')
+  })
+
+  it('hides the thinking chip when no level landscape is known', async () => {
+    // Backends without effort support (or an ACP agent that reported nothing
+    // yet) would open an empty drawer tab — the chip must stay out of the row.
+    const wrapper = mountBar({ currentModelName: 'gpt-4', showThinkingInfo: false })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.session-info-thinking').exists()).toBe(false)
+  })
+
+  it('thinking chip opens the settings drawer on the thinking tab', async () => {
+    // Same one-tap-into-drawer contract as the model chip: the stub carries
+    // the initialTab binding as an attribute, so the click must flip it from
+    // the default tab to the thinking tab.
+    const wrapper = mountBar({ currentModelName: 'gpt-4', currentThinkingEffortName: 'High', showThinkingInfo: true })
+    await wrapper.vm.$nextTick()
+    const drawer = wrapper.find('session-drawer-stub')
+    mockDrawerOpen.mockClear()
+    await wrapper.find('.session-info-thinking').trigger('click')
+    // VTU's default stub flattens prop names onto the tag ("initialtab"):
+    // the click must select the drawer's thinking tab. The open flip itself
+    // goes through the mocked useTabDrawer (this suite keeps it a vi.fn()).
+    expect(drawer.attributes('initialtab')).toBe('thinking')
+    expect(mockDrawerOpen).toHaveBeenCalled()
+  })
+
+  it('group session never shows the thinking chip', async () => {
+    // Model/mode/effort are per-AGENT settings with no owner on a multi-agent
+    // timeline; the group info row only renders group-level switches.
+    const wrapper = mountBar({ isGroupSession: true, currentThinkingEffortName: 'High', showThinkingInfo: true })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.session-info-thinking').exists()).toBe(false)
+  })
+
   it('textarea focus and blur events', async () => {
     const wrapper = mountBar()
     const textarea = wrapper.find('.chat-textarea')

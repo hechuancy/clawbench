@@ -326,6 +326,20 @@
              the turn deliberately carries no modelId so the agent picks its own.
              Show "Default" rather than an empty chip. -->
         <span class="session-info-model" @click.stop="openSettingsDrawer('model')"><ProviderIcon :model-name="currentModelName || ''" :size="11" />{{ currentModelName || t('chat.sessionInfo.default') }}</span>
+        <!-- Thinking-effort chip. Shows the level the NEXT turn will actually
+             run: session pick > per-model memory > agent default, already
+             resolved into currentThinkingEffortName by the session identity
+             (reconcileThinkingEffort). "默认" when nothing explicit is in
+             force — the agent picks its own. Click opens the settings drawer's
+             thinking tab, same one-tap-into-drawer contract as the model chip.
+             Rendered only when something is known about the effort landscape
+             (showThinkingInfo): for backends without effort support, or an ACP
+             agent that has reported nothing yet, a chip into an empty drawer
+             tab is a dead end — same rule as the drawer's extra tab. -->
+        <template v-if="showThinkingInfo">
+          <span class="session-info-divider"></span>
+          <span class="session-info-thinking" :title="t('chat.thinkingEffortSwitcher.title')" @click.stop="openSettingsDrawer('thinking')"><Brain :size="11" />{{ currentThinkingEffortName || t('chat.sessionInfo.default') }}</span>
+        </template>
         <template v-if="showModeInfo">
           <span class="session-info-divider"></span>
           <span class="session-info-mode" :class="{ 'session-info-mode-auto': autoApprove }" @click.stop="onModeClick" v-long-press="onModeLongPress" @mousedown.stop="onModeMouseDown" @mouseup.stop="onModeMouseUp"><ShieldAlert :size="11" />{{ currentModeName }}</span>
@@ -377,7 +391,7 @@
 import { ref, computed, nextTick, watch, onBeforeUnmount, onMounted, defineAsyncComponent } from 'vue'
 import { pendingChatInput as pendingChatInputRef, consumePendingChatInput } from '@/utils/chatInputInjection'
 import { useI18n } from 'vue-i18n'
-import { List, Plus, Search, Archive, Volume2, Paperclip, Inbox, Send, Square, Zap, Activity, MessagesSquare, Sparkles, ArrowRightLeft, Settings, TextCursorInput, MessageSquareShare, Check, Users, Navigation, ShieldAlert, Mic, MessageCircleMore, AudioLines } from 'lucide-vue-next'
+import { List, Plus, Search, Archive, Volume2, Paperclip, Inbox, Send, Square, Zap, Activity, MessagesSquare, Sparkles, ArrowRightLeft, Settings, TextCursorInput, MessageSquareShare, Check, Users, Navigation, ShieldAlert, Mic, MessageCircleMore, AudioLines, Brain } from 'lucide-vue-next'
 import { computeRecentReferencedFiles, isImeCompositionEvent } from '@/utils/chatInputUtils.ts'
 import { measureCaretVisualRows } from '@/utils/textareaVisualRows.ts'
 import { fuzzyMatch, parseAtQuery, parseHashQuery, parseSlashQuery, buildFileCandidates } from '@/utils/completionMatch.ts'
@@ -688,6 +702,16 @@ const props = defineProps({
   currentModelId: String,
   currentModelName: String,
   currentModeName: String,
+  /** Name of the thinking-effort level the next turn will run ('' = nothing
+   *  explicit is in force, the agent picks its own → chip shows "默认").
+   *  Resolved by useSessionIdentity (session pick > per-model memory >
+   *  agent default), the same value the drawer's thinking tab highlights. */
+  currentThinkingEffortName: String,
+  /** Whether the thinking chip should render at all: true when the session
+   *  (ACP-reported) or the agent (CLI BackendSpec) advertises at least one
+   *  effort level. Computed by the parent, which owns the agent registry
+   *  lookups; false keeps the chip out of the info row entirely. */
+  showThinkingInfo: Boolean,
   currentTransport: String,
   currentAgentId: String,
   currentSessionRunning: Boolean,
@@ -2491,6 +2515,7 @@ defineExpose({
 
 .session-info-model,
 .session-info-mode,
+.session-info-thinking,
 .session-info-cruise,
 .session-info-approve,
 .session-info-parallel,
@@ -2509,6 +2534,10 @@ defineExpose({
 }
 
 .session-info-model:active {
+  color: var(--accent-color, #0066cc);
+}
+
+.session-info-thinking:active {
   color: var(--accent-color, #0066cc);
 }
 
@@ -2570,6 +2599,7 @@ defineExpose({
 
 .session-info-model svg,
 .session-info-mode svg,
+.session-info-thinking svg,
 .session-info-cruise svg,
 .session-info-approve svg,
 .session-info-parallel svg,
