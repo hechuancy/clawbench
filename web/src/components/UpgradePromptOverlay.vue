@@ -6,7 +6,7 @@
           <h3>{{ t('upgrade.newVersion') }}</h3>
         </div>
         <p class="up-body">{{ t('upgrade.promptMessage', { version: latestVersion, currentVersion }) }}</p>
-        <div class="up-version-badge">v{{ latestVersion }}</div>
+        <div class="up-version-badge">{{ latestVersion.startsWith('v') ? latestVersion : `v${latestVersion}` }}</div>
         <p v-if="isDocker" class="up-docker-hint">
           {{ t('upgrade.dockerHintBody') }}
           <span class="up-docker-restart">{{ t('upgrade.dockerHintRestart') }}</span>

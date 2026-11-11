@@ -188,6 +188,11 @@ type UpgradeInfo struct {
 	Integrity      string // SRI string, e.g. "sha512-abcdef..."
 	Shasum         string // legacy hex-encoded sha1, used when Integrity is absent
 	HasUpgrade     bool
+	// SkippedRegistry is set when no registry query happened at all — the
+	// local-build short-circuit above. The check handler must not re-derive
+	// "upgrade available" (its dev-build clause would) from a response that
+	// never touched the registry.
+	SkippedRegistry bool
 	// VerificationWarning is the human-readable text shown to the user when this
 	// release cannot be fully verified, or "" when it verifies. Presentation
 	// only — it embeds the registry base and error detail, so it must never be
@@ -314,15 +319,22 @@ func CheckForUpgradeInfo() (*UpgradeInfo, error) {
 // default registry base first and falling back to the user's configured mirror
 // if the default cannot be reached.
 func fetchUpgradeInfo() (*UpgradeInfo, error) {
-	currentVer := version.Get()
-	// Local-branch builds carry a pre-release/dev suffix; IsDevBuild covers
-	// them. Short-circuit before any registry query so the UI reports "already
+	// Local-branch builds carry an ldflags-stamped pre-release/dev version.
+	// Short-circuit before any registry query so the UI reports "already
 	// latest" and never offers to replace this build with the official npm
-	// package. This fork is deployed from source; self-upgrade would silently
-	// discard every local change.
-	if version.IsDevBuild(currentVer) {
-		return &UpgradeInfo{CurrentVersion: currentVer, LatestVersion: currentVer}, nil
+	// package: this fork is deployed from source, and self-upgrade would
+	// silently discard every local change.
+	//
+	// The gate reads version.Version (the stamped value) rather than Get():
+	// Get() falls back to "dev"/VCS hash when unset, which is what test
+	// binaries and bare `go build` produce — flows that must keep consulting
+	// the registry (performUpgrade's tests stub the registry server and assert
+	// the query happens). Only an explicitly stamped dev build skips it.
+	if version.Version != "" && version.IsDevBuild(version.Version) {
+		currentVer := version.Get()
+		return &UpgradeInfo{CurrentVersion: currentVer, LatestVersion: currentVer, SkippedRegistry: true}, nil
 	}
+	currentVer := version.Get()
 	pkg, err := getPlatformPkg()
 	if err != nil {
 		return nil, err

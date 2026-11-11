@@ -38,7 +38,10 @@ func ServeUpgradeCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	currentVer, latestVer := info.CurrentVersion, info.LatestVersion
 
-	hasUpgrade := upgradeCompareVersions(currentVer, latestVer) < 0 || upgradeIsDevBuild(currentVer)
+	// A SkippedRegistry response never consulted npm (local-build short-circuit
+	// in the service): the verdict is final and the dev-build clause below must
+	// not resurrect an upgrade offer for a build that must not be replaced.
+	hasUpgrade := !info.SkippedRegistry && (upgradeCompareVersions(currentVer, latestVer) < 0 || upgradeIsDevBuild(currentVer))
 
 	// Report install-directory writability so the UI can warn before the user
 	// starts an upgrade that cannot succeed.
