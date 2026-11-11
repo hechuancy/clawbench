@@ -23,6 +23,10 @@ Core Advantage: Native passthrough of AI capabilities (tool calls, extended thin
   <img src="assets/architecture.en.svg" alt="ClawBench Deployment Architecture" width="640">
 </p>
 
+## About This Repository (Downstream Fork)
+
+> This repository is a downstream fork of [clawbench-dev/clawbench](https://github.com/clawbench-dev/clawbench), maintained independently with a small set of local changes: upstream code is tracked verbatim on the `main` branch, and all local changes live on the `local` branch only. **What changed, why, and how each change is maintained as upstream evolves** — see the full ledger in [`docs/dev/local_changes.md`](docs/dev/local_changes.md). Licensed under the upstream [MIT License](LICENSE); the upstream copyright notice is retained, and the local changes are published under the same license.
+
 ---
 
 ## Quick Start
@@ -140,6 +144,8 @@ See **[FAQ](docs/user-guide/FAQ.md)** (Chinese).
 
 ## License
 
-Copyright (c) 2026 xulongzhe
+Copyright (c) 2026 xulongzhe (upstream ClawBench)
+
+Copyright (c) 2026 hechuancy (local changes in this fork)
 
 Licensed under the MIT License

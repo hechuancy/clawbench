@@ -25,6 +25,10 @@
 
 📖 **使用手册**：[ClawBench 使用手册](docs/user-guide/README.md) · [在线版（带侧栏目录）](https://clawbench.pages.dev/docs/)
 
+## 关于本仓库（下游分叉）
+
+> 本仓库是上游 [clawbench-dev/clawbench](https://github.com/clawbench-dev/clawbench) 的下游分叉，在其基础上做少量本地改动并独立维护：上游代码经 `main` 分支原样跟踪，所有本地改动只进 `local` 分支。**改了什么、为什么改、上游演进后如何维护**，完整台账见 [`docs/dev/local_changes.md`](docs/dev/local_changes.md)。遵循上游 [MIT 许可证](LICENSE)，上游版权声明保留，本分叉的改动同样以 MIT 发布。
+
 ---
 
 ## 快速开始
@@ -136,6 +140,8 @@ clawbench
 
 ## 许可证
 
-Copyright (c) 2026 xulongzhe
+Copyright (c) 2026 xulongzhe（上游 ClawBench）
+
+Copyright (c) 2026 hechuancy（本分叉的本地改动）
 
 Licensed under the MIT License

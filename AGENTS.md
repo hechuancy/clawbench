@@ -189,6 +189,7 @@ Composable 与组件均按域分组（Chat、Session、Terminal、File、Git、M
 
 ## 开发规则
 
+- **`local` 分支的每个提交必须登记改动台账**：本仓库是上游 [clawbench-dev/clawbench](https://github.com/clawbench-dev/clawbench) 的下游分叉（`main` 恒等于上游 `main`，本地改动只进 `local`）。任何进入 `local` 的新提交都要同步登记到 [`docs/dev/local_changes.md`](docs/dev/local_changes.md)（主题、涉及文件、动机、上游演进时的维护口径；上游原生实现同等能力则移入「已退役」节），每次 `git merge upstream/main` 后刷新该文档的基线快照。README（中英）的分叉声明段指向该文档，改动披露不要散落在别处。
 - **改 UI 前先读视觉设计指导手册**：动样式、加组件、加主题、加动效之前必读 [`docs/spec/client/design-guide.md`](docs/spec/client/design-guide.md)——样式三层归属、设计 token（字号/间距/圆角/层级/时长）、36 主题机制与新增步骤、布局骨架，以及七条红线（`v-html` 匹配不到 scoped 规则、共享类基规则也必须全局、`app-region` 豁免只能是控件、对比度不能靠固定跳一档背景、`content-visibility` 滚动跳变、Android WebView 像素怪癖、`scrollbar-color` 弃用 `::-webkit-scrollbar-*`）。改动检查清单与守卫测试索引也在文末。
 - **日志必须用封装**：前端一律 `appLog.d/i/w/e()`（`@/utils/appLog`），禁止原始 `console.*`；Android 一律 `AppLog.d/i/w/e()`，禁止 `android.util.Log`。两者的自身实现与测试除外。Tag 约定：短 PascalCase 模块名。
 - **功能和 Bug 修复必须包含单元测试**：Go 用 `*_test.go`，前端用 `.test.ts`，放在对应代码旁。测试须验证具体行为，非泛化快乐路径。
