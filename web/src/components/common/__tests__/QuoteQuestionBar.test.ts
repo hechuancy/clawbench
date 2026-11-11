@@ -121,6 +121,18 @@ describe('QuoteQuestionBar', () => {
       expect(wrapper.emitted('send')).toEqual([['why is this broken?', { pickTarget: false }]])
     })
 
+    it('commits Enter as an add, not a send', async () => {
+      // Enter must not start an agent turn: it commits the same way as the
+      // "+" button — the card lands in the chat draft for review, and the
+      // send button stays the only direct-send path.
+      const wrapper = mountBar({ composerMode: true })
+      await wrapper.find('.qq-textarea').setValue('look at this failing test')
+      await wrapper.find('.qq-textarea').trigger('keydown.enter')
+
+      expect(wrapper.emitted('add')).toEqual([['look at this failing test', { pickTarget: false }]])
+      expect(wrapper.emitted('send')).toBeUndefined()
+    })
+
     it('emits add (not a chat-input injection) with the typed note', async () => {
       // The "+" action now produces ONE card carrying the quoted content plus
       // this text as the annotation — the bar only emits; the composable decides

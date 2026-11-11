@@ -507,15 +507,17 @@ function handleAdd(pickTarget = false) {
 }
 
 /**
- * Enter in the input = "send to the active conversation".
+ * Enter in the input = "add to the active conversation's context" — the same
+ * commit as the + button (a quote card lands in the chat draft), NOT a send:
+ * no agent turn starts, the user reviews and sends from the chat input.
  *
- * It MUST go through a wrapper, not `handleSend` directly: Vue passes the
+ * It MUST go through a wrapper, not `handleAdd` directly: Vue passes the
  * KeyboardEvent as the first argument, which would land in `pickTarget` and
  * make every Enter press open the session picker — the exact friction this
  * feature removes.
  */
 function onEnterKey() {
-  handleSend(false)
+  handleAdd(false)
 }
 
 // Long-press (touch) / press-and-hold (mouse) on the commit buttons = "send
