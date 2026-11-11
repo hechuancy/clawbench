@@ -1608,14 +1608,14 @@ useMenuKeyboard({ panelRef: branchDropdownPanelRef, isOpen: branchDropdownOpen }
    the capsule mid-header.
 
    Why the capsule and not the theme button: the capsule is the FIRST element of
-   the cluster, so only an auto margin on it survives the ticker disappearing.
-   `.header-tips` is `flex: 1` — while it renders it eats all the slack and drags
-   the capsule right by itself, which is why putting the auto margin on the theme
-   button looked correct on a PC. But the ticker is gated on
-   `!isAppMode || isDesktopApp`, so on a tablet / Android WebView (wide enough
-   for `isWideScreen`, no physical keyboard) it is absent, nothing eats the
-   slack, and the theme button's own auto margin then flew to the right edge
-   alone — leaving the capsule back beside the project badge. */
+   the cluster (everything before it — badge capsule, layout switch, shortcuts
+   button — is intrinsic-width), so the auto margin on it is what keeps the
+   cluster pinned right no matter which of the preceding controls render. The
+   old tips ticker (`flex: 1`) used to eat the slack instead, which is why an
+   auto margin on the theme button looked correct on a PC — until the ticker
+   was absent on tablets and the capsule collapsed back beside the project
+   badge. That ticker is gone; this margin is the only thing defining the
+   cluster, which is exactly what the wiring test asserts. */
 .usage-meter-slot {
     margin-left: auto;
     margin-right: var(--space-2);

@@ -52,10 +52,10 @@
    could not be clicked.
 
    Deliberately an ALLOWLIST of small, intrinsically interactive things — never
-   a container that fills free space. `.header-tips` was listed here once and it
-   is `flex: 1`, so it turned the whole middle band into a dead zone where the
-   window could not be dragged; the ticker now opts out only on its text (see
-   `.stt-viewport`). Any addition here should be a control, not a filler. */
+   a container that fills free space. A `flex: 1` tips marquee was listed here
+   once and it turned the whole middle band into a dead zone where the window
+   could not be dragged (it has since been removed). Any addition here should
+   be a control, not a filler. */
 .header button,
 .header a,
 .header input,

@@ -51,17 +51,20 @@ describe('usage meter — capsule wiring', () => {
     expect(header).not.toMatch(/v-if="isWideScreen && usageMeter\.status\.value\.enabled"/)
   })
 
-  it('the capsule sits between the tips ticker and the theme button', () => {
-    // Right-hand control cluster: ticker (flex:1) → capsule → theme → server.
-    // Before the ticker the capsule was pushed to the middle of the header,
-    // which read as a free-floating number rather than a header control.
+  it('the capsule sits after the layout controls and before the theme button', () => {
+    // Right-hand control cluster: layout switch / shortcuts button → capsule →
+    // theme → server. The scrolling tips ticker that used to eat the header's
+    // slack (and drag the capsule along) is gone; the controls that precede
+    // the capsule are all intrinsic-width, so only the capsule's own auto
+    // margin (asserted below) defines the cluster — this test pins the DOM
+    // order so a future filler element cannot sneak in between unnoticed.
+    const layout = header.indexOf('<HeaderLayoutSwitch')
     const capsule = header.indexOf('<UsageMeterPopover')
-    const ticker = header.indexOf('<ShortcutTipTicker')
     const theme = header.indexOf('class="theme-quick-toggle"')
+    expect(layout).toBeGreaterThan(-1)
     expect(capsule).toBeGreaterThan(-1)
-    expect(ticker).toBeGreaterThan(-1)
     expect(theme).toBeGreaterThan(-1)
-    expect(ticker).toBeLessThan(capsule)
+    expect(layout).toBeLessThan(capsule)
     expect(capsule).toBeLessThan(theme)
   })
 

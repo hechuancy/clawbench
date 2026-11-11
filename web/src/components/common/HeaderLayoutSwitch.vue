@@ -8,7 +8,7 @@
       :class="{ 'hls-opt--active': activeId === opt.id }"
       :aria-pressed="activeId === opt.id"
       :title="opt.title"
-      @click="opt.apply()"
+      @click="select(opt.id)"
     >
       <component :is="opt.icon" :size="14" />
       <span class="hls-opt-label">{{ opt.label }}</span>
@@ -37,12 +37,7 @@ const { leftCollapsed, chatCollapsed } = useWideScreenLayout()
 const { t } = useI18n()
 
 /**
- * The three reachable layouts, one segment each. The setters carry the
- * mutual-exclusion invariants themselves (hiding chat re-opens the left pane
- * and vice versa), so "split" is the only state that must touch both — and
- * expanding one side already reads as "leave the other alone", which is why
- * apply() for a single pane only calls one setter when moving OUT of a
- * collapsed state.
+ * The three reachable layouts, one segment each.
  */
 type LayoutId = 'left' | 'split' | 'chat'
 
@@ -52,26 +47,49 @@ const options = computed(() => [
     icon: PanelLeft,
     label: t('appHeader.layoutLeftPane'),
     title: t('appHeader.layoutLeftPaneTitle'),
-    // Same focus routing the divider handles used to do: hiding chat moves
-    // focus to the left pane so pane-aware shortcuts follow the visible pane.
-    apply: () => { setChatCollapsed(true); setActivePane(PANE_LEFT) },
   },
   {
     id: 'split' as LayoutId,
     icon: Columns2,
     label: t('appHeader.layoutSplit'),
     title: t('appHeader.layoutSplitTitle'),
-    // Expanding one pane is a no-op when already open, so this is idempotent.
-    apply: () => { setChatCollapsed(false); setLeftCollapsed(false) },
   },
   {
     id: 'chat' as LayoutId,
     icon: MessageSquare,
     label: t('appHeader.layoutChat'),
     title: t('appHeader.layoutChatTitle'),
-    apply: () => { setLeftCollapsed(true); setActivePane(PANE_RIGHT) },
   },
 ])
+
+/**
+ * Apply a segment. The layout setters carry the mutual-exclusion guards
+ * (setLeftCollapsed REFUSES while chat is hidden; setChatCollapsed re-opens
+ * the left pane when hiding chat), so transitions must be phrased as
+ * "establish what must be open, then hide what must be hidden":
+ *
+ *   → chat from left-only: expanding chat FIRST is what unblocks collapsing
+ *     the left pane — calling setLeftCollapsed(true) alone is a guarded no-op
+ *     there (the exact dead-click bug this phrasing replaces).
+ *
+ * Clicking the already-active segment is a no-op, so the control never
+ * "un-toggles" the layout it is showing. Focus routes to the pane that stays
+ * visible, same as the divider handles it replaces did.
+ */
+function select(id: LayoutId) {
+  if (activeId.value === id) return
+  if (id === 'left') {
+    setChatCollapsed(true)
+    setActivePane(PANE_LEFT)
+  } else if (id === 'chat') {
+    setChatCollapsed(false)
+    setLeftCollapsed(true)
+    setActivePane(PANE_RIGHT)
+  } else {
+    setChatCollapsed(false)
+    setLeftCollapsed(false)
+  }
+}
 
 // Mirrors the setters' invariants: chat hidden ⇒ 左栏; left hidden ⇒ 聊天;
 // neither ⇒ split. The guards make both-never-hold, so two reads suffice.

@@ -91,4 +91,35 @@ describe('HeaderLayoutSwitch', () => {
     expect(leftCollapsed.value).toBe(false)
     expect(segment(wrapper, 'split').classes()).toContain('hls-opt--active')
   })
+
+  it('switches to chat-only from left-only (no guarded dead click)', async () => {
+    // Regression: setLeftCollapsed REFUSES to collapse while chat is hidden
+    // (mutual exclusion), so phrasing the transition as a lone
+    // setLeftCollapsed(true) made the chat segment a dead click in left-only
+    // mode. The transition must expand chat first.
+    setChatCollapsed(true)
+    const wrapper = mountSwitch()
+    expect(segment(wrapper, 'left').classes()).toContain('hls-opt--active')
+
+    await segment(wrapper, 'chat').trigger('click')
+    await nextTick()
+
+    expect(leftCollapsed.value).toBe(true, 'left pane must collapse')
+    expect(chatCollapsed.value).toBe(false, 'chat must be back open')
+    expect(segment(wrapper, 'chat').classes()).toContain('hls-opt--active')
+  })
+
+  it('does nothing when the active segment is clicked again', async () => {
+    const wrapper = mountSwitch()
+
+    await segment(wrapper, 'chat').trigger('click')
+    await nextTick()
+    expect(leftCollapsed.value).toBe(true)
+
+    await segment(wrapper, 'chat').trigger('click')
+    await nextTick()
+
+    expect(leftCollapsed.value).toBe(true, 're-clicking the active segment must not toggle the layout')
+    expect(chatCollapsed.value).toBe(false)
+  })
 })
