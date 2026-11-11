@@ -8,7 +8,23 @@
   flex-direction: row;
 }
 
-/* Let the split area shrink when the vertical dock is present */
+/* Let the split area shrink when the vertical dock is present. The row
+   direction makes the session sidebar (see below) a flex SIBLING of the
+   SplitView instead of a passenger of the chat pane. */
 .main-content.wide-screen .content-area {
   min-width: 0;
+  flex-direction: row;
+}
+
+/* 会话侧栏（.session-sidebar）是 content-area 的第二个 flex 子项——独立列，
+   与 SplitView 的窗格互斥关系由 open 状态与 pane 布局正交表达（解耦设计，
+   docs/superpowers/specs/2026-11-11-session-sidebar-decouple-design.md）。
+   SplitView 吃掉侧栏以外的全部宽度；侧栏宽度由其自身 220–480px 拖拽逻辑
+   控制，flex 不参与伸缩。窄屏不受影响：侧栏在窄屏 v-show 隐藏。 */
+.main-content.wide-screen .content-area > .split-view {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.main-content.wide-screen .content-area > .session-sidebar {
+  flex-shrink: 0;
 }

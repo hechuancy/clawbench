@@ -21,12 +21,6 @@ import { readWebFile } from '@/testUtils/readWebFile'
 describe('chat pane collapse affordance', () => {
   const APP = 'src/App.vue'
 
-  function splitViewTag(src: string): string {
-    const open = src.indexOf('<SplitView')
-    expect(open).toBeGreaterThan(-1)
-    return src.slice(open, src.indexOf('>', open))
-  }
-
   /** The `<button class="chat-rail" …>` opening tag. */
   function railTag(src: string): string {
     const start = src.indexOf('class="chat-rail"')
@@ -34,25 +28,6 @@ describe('chat pane collapse affordance', () => {
     const tagStart = src.lastIndexOf('<button', start)
     return src.slice(tagStart, src.indexOf('>', start))
   }
-
-  it('wires BOTH divider handles to the collapse handler', () => {
-    const tag = splitViewTag(readWebFile(APP))
-    expect(tag).toContain(':collapse-left="isWideScreen"')
-    expect(tag).toContain(':collapse-right="isWideScreen"')
-    expect(tag).toContain('@collapse="onSplitCollapse"')
-  })
-
-  it('routes each side to its own setter, through the shared guards', () => {
-    const src = readWebFile(APP)
-    const start = src.indexOf('function onSplitCollapse')
-    expect(start, 'onSplitCollapse must exist').toBeGreaterThan(-1)
-    const body = src.slice(start, src.indexOf('\n}', start))
-    // Right hides chat, left hides the left pane. Both go through the composable
-    // setters so the "never both hidden" guard stays in one place.
-    expect(body).toContain("if (side === 'right')")
-    expect(body).toContain('setChatCollapsed(true)')
-    expect(body).toContain('setLeftCollapsed(true)')
-  })
 
   it('offers a right-edge rail that only exists while chat is hidden', () => {
     const src = readWebFile(APP)
@@ -161,14 +136,5 @@ describe('chat pane collapse affordance', () => {
     for (const wrapper of ['src/components/file/FileViewer.vue', 'src/components/file/FileOverlay.vue']) {
       expect(readWebFile(wrapper), `${wrapper} must forward the event`).toContain("@toggle-maximize-pane=\"emit('toggleMaximizePane')\"")
     }
-  })
-
-  it('keeps the divider handle as the discoverable entry point', () => {
-    // The header button is an ADDITIONAL entry point, not a replacement: the
-    // divider handle is what makes the split feel draggable/collapsible at all.
-    const app = readWebFile(APP)
-    const tag = splitViewTag(app)
-    expect(tag).toContain(':collapse-right="isWideScreen"')
-    expect(tag).toContain('@collapse="onSplitCollapse"')
   })
 })

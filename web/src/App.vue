@@ -290,13 +290,10 @@
               <div class="col-right" v-show="isWideScreen || activeTab === 'chat'" @pointerdown="setActivePane('right')" @focusin="setActivePane('right')" @dragenter="onChatColDragEnter" @dragover="onChatColDragOver" @dragleave="onChatColDragLeave" @drop="onChatColDrop">
                 <div class="col-right-chat">
                   <div class="chat-panel-row">
-                  <!-- Chat column: title bar + chat panel. Keeping the title
-                       bar inside this column (rather than spanning the whole
-                       right pane) leaves the session sidebar full-height. -->
+                  <!-- Chat column: title bar + chat panel. -->
                   <!-- The drop highlight lives on THIS column, not on .col-right:
-                       .col-right also contains the session sidebar, so binding
-                       it there lit up the sidebar too and the user read that as
-                       "the whole pane is the target". The drag handlers stay on
+                       lighting up the whole pane would read as "the whole pane
+                       is the target". The drag handlers stay on
                        .col-right so the drop still works anywhere on the pane —
                        the highlight previews the DESTINATION (the chat), not the
                        cursor's location. -->
@@ -372,34 +369,44 @@
                     />
                   </TabPanel>
                   <!-- The hint is centered on the CHAT column, not on
-                       .chat-panel-row: that row also spans the session sidebar,
-                       so centering there would push the pill off the chat. -->
+                       .chat-panel-row: centering on the row would push the
+                       pill off the chat once the pane grows wider than the
+                       drop overlay covers. -->
                   <div v-if="chatDropActive" class="chat-drop-hint">
                     <MessageSquare v-if="chatDropKind === 'quote'" :size="16" />
                     <Paperclip v-else :size="16" />
                     {{ chatDropKind === 'quote' ? t('chat.dropToQuote') : t('file.dropToAttach') }}
                   </div>
                   </div>
-                  <SessionSidebar
-                    ref="sessionSidebarRef"
-                    v-show="sessionSidebar.open.value && isWideScreen"
-                    :width="sessionSidebar.width.value"
-                    :current-session-id="sessionIdentity.currentSessionId.value"
-                    :running-session-ids="sessionIdentity.runningSessions.value"
-                    :is-active="sessionSidebar.open.value && isWideScreen"
-                    @resize="sessionSidebar.setWidth"
-                    @close="sessionSidebar.closeSidebar"
-                    @select="handleSessionSelect"
-                    @archive="handleSessionArchive"
-                    @destroy="handleSessionDestroy"
-                    @open-session-search="sessionSearchDrawer.open()"
-                    @create-agent-select="sessionIdentity.openAgentSelector"
-                  />
                   </div>
                 </div>
               </div>
             </template>
           </SplitView>
+
+          <!-- 会话侧栏：content-area 层的独立列（SplitView 的兄弟节点），不再
+               寄生在聊天窗格内部。open 状态与窗格布局正交——左栏布局下打开
+               它只出列表不出聊天页（解耦设计 docs/superpowers/specs/
+               2026-11-11-session-sidebar-decouple-design.md）。指针/焦点进入
+               侧栏归属右 pane：聊天类快捷键（Ctrl+K 等）以 activePane==='right'
+               为门控，上移后若丢失这个副作用，点过侧栏再按快捷键会静默失效。 -->
+          <SessionSidebar
+            ref="sessionSidebarRef"
+            v-show="sessionSidebar.open.value && isWideScreen"
+            :width="sessionSidebar.width.value"
+            :current-session-id="sessionIdentity.currentSessionId.value"
+            :running-session-ids="sessionIdentity.runningSessions.value"
+            :is-active="sessionSidebar.open.value && isWideScreen"
+            @pointerdown="onSidebarPointerDown"
+            @focusin="setActivePane(PANE_RIGHT)"
+            @resize="sessionSidebar.setWidth"
+            @close="sessionSidebar.closeSidebar"
+            @select="handleSessionSelect"
+            @archive="handleSessionArchive"
+            @destroy="handleSessionDestroy"
+            @open-session-search="sessionSearchDrawer.open()"
+            @create-agent-select="sessionIdentity.openAgentSelector"
+          />
 
           <!-- Collapsed-chat rail. When the chat pane is hidden it is
                `display:none`, so this 24px strip at the right edge is the ONLY
@@ -1270,12 +1277,26 @@ function toggleChatPane() {
 // its keyboard shortcuts even though the user has clearly clicked into it.
 // Skip blur for CodeMirror .cm-content — blurring it on mobile causes the
 // soft keyboard to dismiss then re-appear when CM re-focuses on mousedown.
-function onLeftPanePointerDown() {
-  setActivePane(PANE_LEFT)
+function blurForeignInputs() {
   const el = document.activeElement as HTMLElement | null
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el.isContentEditable && !el.classList.contains('cm-content')))) {
     el.blur()
   }
+}
+
+function onLeftPanePointerDown() {
+  setActivePane(PANE_LEFT)
+  blurForeignInputs()
+}
+
+// 指针进入会话侧栏 = 在「会话」语境里工作：归属右 pane，聊天类快捷键
+// （Ctrl+K / Ctrl+←→ / Ctrl+Delete，均以 activePane==='right' 门控）保持
+// 可用；同时把焦点从左栏的输入框里带出来，理由同 onLeftPanePointerDown。
+// 侧栏上移到 content-area 层后，col-right 自带的 @pointerdown 副作用不再
+// 覆盖它，必须在这里补齐（见模板挂载点注释）。
+function onSidebarPointerDown() {
+  setActivePane(PANE_RIGHT)
+  blurForeignInputs()
 }
 
 // Dock active indicator — water-drop sliding highlight
@@ -5270,7 +5291,7 @@ onUnmounted(() => {
     outline: 2px solid var(--accent-color, #0066cc);
     outline-offset: 1px;
 }
-/* Chat column + session sidebar live in this row below the right pane top. */
+/* Chat column: title bar stacked above the chat tab panel. */
 .chat-panel-row {
     position: relative;
     flex: 1;
@@ -5278,9 +5299,8 @@ onUnmounted(() => {
     display: flex;
     flex-direction: row;
 }
-/* Chat column: title bar stacked above the chat tab panel. Keeping the title
-   bar scoped here (not spanning the whole right pane) lets the session
-   sidebar render full-height beside it. */
+/* Chat column: title bar stacked above the chat tab panel (the session
+   sidebar is a content-area-level sibling column, not a passenger here). */
 .chat-col {
     position: relative;
     flex: 1;
