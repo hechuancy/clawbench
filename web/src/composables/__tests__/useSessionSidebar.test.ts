@@ -62,40 +62,6 @@ describe('useSessionSidebar', () => {
     expect(localStorage.getItem(KEY)).toContain('"open":false')
   })
 
-  it('pinToSidebar opens sidebar', () => {
-    const s = useSessionSidebar()
-    s.closeSidebar()
-    s.pinToSidebar()
-    expect(s.open.value).toBe(true)
-  })
-
-  it('unpinToDrawer just collapses the sidebar (does NOT open the drawer)', () => {
-    const s = useSessionSidebar()
-    const openDrawer = vi.fn()
-    s.registerOpenDrawer(openDrawer)
-    s.pinToSidebar()
-    s.unpinToDrawer()
-    expect(s.open.value).toBe(false)
-    expect(openDrawer).not.toHaveBeenCalled()
-  })
-
-  it('openSessionTabBridge opens the drawer without unpinning the sidebar', () => {
-    const s = useSessionSidebar()
-    const openDrawer = vi.fn()
-    s.registerOpenDrawer(openDrawer)
-    // Sidebar pinned → bridge keeps it pinned AND opens the drawer
-    s.open.value = true
-    s.openSessionTabBridge()
-    expect(s.open.value).toBe(true)
-    expect(openDrawer).toHaveBeenCalled()
-    // Sidebar closed → bridge just opens drawer
-    openDrawer.mockClear()
-    s.closeSidebar()
-    s.openSessionTabBridge()
-    expect(s.open.value).toBe(false)
-    expect(openDrawer).toHaveBeenCalled()
-  })
-
   it('delegates addSessionLocally to registered callback', () => {
     const s = useSessionSidebar()
     const fn = vi.fn()

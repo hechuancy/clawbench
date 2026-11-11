@@ -25,7 +25,6 @@ export interface SidebarSession {
 
 const open = ref(true)
 const width = ref(SIDEBAR_DEFAULT_WIDTH)
-let openDrawerFn: (() => void) | null = null
 let addLocallyFn: ((session: SidebarSession) => void) | null = null
 let initialized = false
 let stopEpochWatch: (() => void) | null = null
@@ -79,25 +78,11 @@ export function useSessionSidebar() {
     width.value = clampWidth(w)
     persist()
   }
-  function pinToSidebar() {
-    openSidebar()
-  }
-  /** Unpin / deselect: just collapse the sidebar (does NOT re-open the drawer). */
-  function unpinToDrawer() {
-    closeSidebar()
-  }
-  function registerOpenDrawer(fn: () => void) {
-    openDrawerFn = fn
-  }
   function registerAddSessionLocally(fn: (session: SidebarSession) => void) {
     addLocallyFn = fn
   }
   function addSessionLocally(session: SidebarSession) {
     addLocallyFn?.(session)
-  }
-  /** Bridge for openSessionTab: keep the sidebar as-is and just open the drawer. */
-  function openSessionTabBridge() {
-    openDrawerFn?.()
   }
 
   return {
@@ -107,12 +92,8 @@ export function useSessionSidebar() {
     closeSidebar,
     toggleSidebar,
     setWidth,
-    pinToSidebar,
-    unpinToDrawer,
-    registerOpenDrawer,
     registerAddSessionLocally,
     addSessionLocally,
-    openSessionTabBridge,
   }
 }
 
@@ -123,6 +104,5 @@ export function _resetForTest() {
   stopEpochWatch = null
   open.value = true
   width.value = SIDEBAR_DEFAULT_WIDTH
-  openDrawerFn = null
   addLocallyFn = null
 }

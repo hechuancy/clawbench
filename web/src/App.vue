@@ -506,7 +506,6 @@
         @archive="handleSessionArchive"
         @destroy="handleSessionDestroy"
         @open-session-search="sessionSearchDrawer.open()"
-        @pin="handleDrawerPin"
       />
 
       <!-- Session search drawer -->
@@ -1886,10 +1885,6 @@ function openAgentConfig(agentId: string) {
 }
 
 const sessionSidebar = useSessionSidebar()
-sessionSidebar.registerOpenDrawer(() => sessionIdentity.sessionDrawer.open())
-// Route the session-list entry (Ctrl+K / session button) through the sidebar
-// bridge: keep the pinned sidebar as-is and open the session drawer.
-registerOpenSessionTabOverride(() => sessionSidebar.openSessionTabBridge())
 
 // Register chat-scoped drawers with tab-drawer binding
 // Session drawer is now owned by useSessionIdentity (encapsulated TabDrawer)
@@ -2619,6 +2614,19 @@ const sessionDrawerRef = ref<InstanceType<typeof SessionDrawer> | null>(null)
 const sessionSidebarRef = ref<InstanceType<typeof SessionSidebar> | null>(null)
 const chatPanelContentRef = ref<InstanceType<typeof ChatPanelContent> | null>(null)
 
+// 会话列表唯一入口分流（解耦设计 §4）：宽屏只认固定侧栏——已开则 reveal 当
+// 前行（openSidebar 对已开的固定侧栏是静默无操作，快捷键会读起来像坏了），
+// 未开则打开；窄屏保留悬浮抽屉。放在 sessionSidebarRef 声明之后：闭包惰性
+// 读 ref，注册时机不敏感，但放一起可读性最好。
+registerOpenSessionTabOverride(() => {
+  if (isWideScreen.value) {
+    if (sessionSidebar.open.value) sessionSidebarRef.value?.revealCurrent()
+    else sessionSidebar.openSidebar()
+    return
+  }
+  sessionIdentity.sessionDrawer.open()
+})
+
 // Register the group-roster refresher. App.vue owns the single
 // useGroupMembers instance (the chat header and the settings sheet both read
 // it), so consumers that need to force a reload after writing member data —
@@ -2747,11 +2755,6 @@ async function handleGroupCreate(payload: { hostId: string; memberIds: string[] 
   } catch (e) {
     appLog.w('App', `create group failed: ${String(e)}`)
   }
-}
-
-function handleDrawerPin() {
-  sessionIdentity.sessionDrawer.close()
-  sessionSidebar.pinToSidebar()
 }
 
 function handleSessionArchive(sessionId: string, backend?: string) {

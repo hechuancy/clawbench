@@ -1450,8 +1450,6 @@ export default {
     unnamed: 'Unnamed session',
     queueFailed: 'Failed to enqueue',
     removeFailed: 'Failed to remove',
-    pinToSidebar: 'Pin to sidebar',
-    unpinToSidebar: 'Unpin',
     openSidebar: 'Open session sidebar',
     quickCreate: 'New session (long press to select agent)',
     closeSidebar: 'Close sidebar',

@@ -123,7 +123,12 @@ function handleArchive(sessionId, backend) {
   emit('archive', sessionId, backend)
 }
 
-defineExpose({ loadSessions: () => listRef.value?.loadSessions(), addSessionLocally: (s) => listRef.value?.addSessionLocally(s) })
+defineExpose({
+  loadSessions: () => listRef.value?.loadSessions(),
+  addSessionLocally: (s) => listRef.value?.addSessionLocally(s),
+  // Ctrl+K 已开侧栏时的反馈：代理到列表的 revealActive（设计 §2a）。
+  revealCurrent: () => listRef.value?.revealActive(),
+})
 </script>
 
 <style scoped>

@@ -149,20 +149,21 @@ describe('SessionDrawer', () => {
   })
 
   describe('pin button', () => {
-    it('renders a pin button and emits pin on click', async () => {
-      const wrapper = mountDrawer()
-      await nextTick()
-      const pin = wrapper.find('.header-action-btn[data-action="pin"]')
-      expect(pin.exists()).toBe(true)
-      await pin.trigger('click')
-      expect(wrapper.emitted('pin')).toBeTruthy()
-    })
-
-    it('does not render the pin button on narrow screen (pinning disabled on non-wide)', async () => {
-      wideScreen.isWideScreen.value = false
+    // 宽屏会话列表已收敛为固定侧栏单形态（解耦设计 §4）：抽屉不再有
+    // 「固定到侧栏」按钮——它只服务窄屏列表与智能体选择器。
+    it('no longer renders a pin button — the sidebar is the only wide form', async () => {
       const wrapper = mountDrawer()
       await nextTick()
       expect(wrapper.find('.header-action-btn[data-action="pin"]').exists()).toBe(false)
+    })
+
+    it('does not emit pin events at all', async () => {
+      const wrapper = mountDrawer()
+      await nextTick()
+      // 任意头部按钮点击都不得再产出 pin 事件（emit 链已删）。
+      const search = wrapper.find('.header-action-btn[data-action="search"]')
+      if (await search.exists()) await search.trigger('click')
+      expect(wrapper.emitted('pin')).toBeFalsy()
     })
   })
 

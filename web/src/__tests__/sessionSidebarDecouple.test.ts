@@ -48,4 +48,16 @@ describe('session sidebar decouple', () => {
     expect(body).toContain('setChatCollapsed(false)')
     expect(body).toContain('setActivePane(PANE_RIGHT)')
   })
+
+  it('routes the session-list entry: wide → sidebar (reveal when open), narrow → drawer', () => {
+    const src = readWebFile(APP)
+    const start = src.indexOf('registerOpenSessionTabOverride(() => {')
+    expect(start, 'the override must be a closure').toBeGreaterThan(-1)
+    const body = src.slice(start, src.indexOf('})', start))
+    expect(body).toContain('if (isWideScreen.value)')
+    expect(body).toContain('sessionSidebarRef.value?.revealCurrent()')
+    expect(body).toContain('sessionSidebar.openSidebar()')
+    expect(body).toContain('sessionDrawer.open()')
+    expect(body).not.toContain('openSessionTabBridge')
+  })
 })

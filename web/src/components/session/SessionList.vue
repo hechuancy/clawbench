@@ -18,7 +18,7 @@
          nothing can be squeezed. In tab mode each pane scrolls on its own. -->
     <div class="session-list-body">
     <!-- ── Project pane: one list, with derived sessions folded into groups ── -->
-    <div v-show="!tabsMode || activeTab === 'project'" ref="listRef" class="session-list-pane">
+    <div v-show="!tabsMode || activeTab === 'project'" ref="listRef" class="session-list-pane" tabindex="-1">
       <!-- Only show the full-screen skeleton on first load / when the list is empty.
            On background refreshes the existing list stays visible so it can be
            swapped seamlessly to the new data (see loadSessions). -->
@@ -1110,7 +1110,18 @@ async function refreshSessionShares() {
   }
 }
 
-defineExpose({ loadSessions, addSessionLocally, reload })
+/**
+ * Ctrl+K 在侧栏已开时的反馈（解耦设计 §2a）：把当前会话行滚入可视区并聚焦
+ * 滚动容器。没有这一步，openSidebar 对已打开的固定侧栏是静默无操作，快捷键
+ * 会读起来像坏了。行定位与 scrollActiveIntoView 同源（.session-item.active）。
+ */
+function revealActive() {
+  const active = listRef.value?.querySelector('.session-item.active')
+  if (active && typeof active.scrollIntoView === 'function') active.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+  if (typeof listRef.value?.focus === 'function') listRef.value.focus({ preventScroll: true })
+}
+
+defineExpose({ loadSessions, addSessionLocally, reload, revealActive })
 
 onMounted(() => {
   loadSessions()

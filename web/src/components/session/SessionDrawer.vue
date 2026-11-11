@@ -27,18 +27,7 @@
           :session-max-count="sessionMaxCount"
           @open-search="$emit('open-session-search')"
           @create="handleCreateClick"
-        >
-          <!-- Pin sits in the trailing slot so it is the right-most control in
-               the header, after search/create. Icon-only like the rest of the
-               row; the button is wide-screen only (the pinned sidebar it opens
-               does not exist on a phone), so the wording lives in the hover
-               tooltip. -->
-          <template #actions-end>
-            <button v-if="isWideScreen" class="header-action-btn" data-action="pin" @click.stop="$emit('pin')" :title="t('session.pinToSidebar')" :aria-label="t('session.pinToSidebar')">
-              <PanelRight :size="16" />
-            </button>
-          </template>
-        </SessionListHeader>
+        />
       </template>
 
       <SessionList
@@ -96,7 +85,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { PanelRight } from 'lucide-vue-next'
 import BottomSheet from '@/components/common/BottomSheet.vue'
 import SessionList from '@/components/session/SessionList.vue'
 import SessionListTabs from '@/components/session/SessionListTabs.vue'
@@ -104,7 +92,6 @@ import SessionListHeader from '@/components/session/SessionListHeader.vue'
 import AgentSelectorDrawer from '@/components/common/AgentSelectorDrawer.vue'
 import { useAgents } from '@/composables/useAgents'
 import { useTabDrawer } from '@/composables/useTabDrawer'
-import { useWideScreenLayout } from '@/composables/useWideScreenLayout'
 import { store } from '@/stores/app.ts'
 
 const { t } = useI18n()
@@ -115,9 +102,8 @@ const props = defineProps({
   currentAgentId: String,
 })
 
-const emit = defineEmits(['close', 'select', 'create', 'create-group', 'archive', 'destroy', 'open-session-search', 'pin'])
+const emit = defineEmits(['close', 'select', 'create', 'create-group', 'archive', 'destroy', 'open-session-search'])
 
-const { isWideScreen } = useWideScreenLayout()
 
 const bottomSheetRef = ref(null)
 const agentSelectorRef = ref(null)

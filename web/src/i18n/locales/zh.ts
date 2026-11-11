@@ -1456,8 +1456,6 @@ export default {
     unnamed: '未命名会话',
     queueFailed: '加入队列失败',
     removeFailed: '移除失败',
-    pinToSidebar: '固定到侧栏',
-    unpinToSidebar: '取消固定',
     openSidebar: '打开会话侧栏',
     quickCreate: '新建会话（长按选择智能体）',
     closeSidebar: '关闭侧栏',

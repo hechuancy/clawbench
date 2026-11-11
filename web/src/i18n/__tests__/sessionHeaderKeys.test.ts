@@ -9,7 +9,7 @@ import zh from '@/i18n/locales/zh'
  * A missing key renders the raw key string as the tooltip (e.g.
  * "session.refresh"), so lock the set down for both locales.
  */
-const HEADER_ACTION_KEYS = ['title', 'newSession', 'quickCreate', 'refresh', 'pinToSidebar', 'unpinToSidebar', 'openSidebar', 'closeSidebar'] as const
+const HEADER_ACTION_KEYS = ['title', 'newSession', 'quickCreate', 'refresh', 'openSidebar', 'closeSidebar'] as const
 
 describe('i18n session header action keys', () => {
   it('en defines every session header action key', () => {
