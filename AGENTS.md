@@ -233,3 +233,17 @@ Composable 与组件均按域分组（Chat、Session、Terminal、File、Git、M
   - **绝不同时跑 `npm run build` 与全量 vitest**：会 OOM 被 Killed，并把结果污染成成片假失败。必须串行。
   - **判据**：若一个验证动作**不改变结论**，就不该跑。跑之前问「这个结果会让我改代码吗」，不会就别跑。
   - **baseline 陈旧导致的 Tier 1 失败不要靠补测试去「修」**：先确认归属（比对失败包是否被自己改过）；Tier 1-only 是 non-blocking（脚本以 `exit 2` 区分）。
+
+## 本机部署与迭代纪律（local 分支专属，不入上游）
+
+维护者机器（WSL2）的生产服务形态与开发循环，后续 agent 必须遵守。机器级配置（systemd 单元）不进仓库，靠本节描述对齐。
+
+- **生产服务 = systemd `clawbench.service`**：`ExecStart=<仓库>/clawbench --port 20000`、`WorkingDirectory=<仓库根>`（服务因此走 **disk 模式**，直接读 `.clawbench-web/`）、`Restart=always`、`TimeoutStopSec=12`（缓解下方关停挂起 bug）。数据目录 `~/.clawbench`。开机链：Windows Administrator 的 Startup `ubuntu.vbs` → WSL systemd → 本服务，开机登录后即自动可用。
+- **重启唯一入口：`sudo systemctl restart clawbench`。禁止 `./build.sh --restart`**——它绕过 systemd 裸起新进程，systemd 随即把旧二进制再拉起来，两个实例抢 `~/.clawbench` 实例锁互相顶掉（2026-11-11 实测造成服务中断约 4 分钟）。
+- **单端口决策：只用 20000，不做多端口开发态**。维护者明确否决了 `dev-server.sh` 的 Vite HMR 多端口方案（20002/20003）——单人使用，40 秒构建换零心智负担。agent 勿主动搭建该方案；且上游 `dev-server.sh` 在纯 HTTP 部署本就不可用（`dev_port` 的 `devSrv.Serve` 只在 TLS 分支启动，`cmd/server/main.go` 约 1755 行，HTTP 模式下只 bind 不 accept）。
+- **迭代循环（实测耗时）**：
+  - 改前端：`npm run build`（~40s）→ 两端浏览器刷新即生效，无需重启。
+  - 改 Go：`go build -ldflags "-X 'clawbench/internal/version.Version=$(git describe --tags --always)-$(date +%m%d%H%M)'" -o clawbench ./cmd/server && sudo systemctl restart clawbench`（编译 2~5s、重启 ~2s）。**ldflags 版本戳不能省**——见台账条目 1 的部署纪律，裸 `go build` 的未打戳版本会触发「有新版本」提示且点升级 403。
+- **已知未修 bug（本地已缓解，根治待办）**：
+  - **关停挂起**：优雅关停流程 ~2s 走完（日志到 `bing wallpaper worker stopped`）后主进程不退出，与常驻 ACP 子进程（如 `opencode serve`）相关，无子进程时秒退。systemd `TimeoutStopSec=12` 兜底强杀（WAL 保证数据无损）。要根治：重启瞬间对旧主进程 `kill -QUIT <PID>`，journal 会留 goroutine 堆栈定位卡点。
+  - 上游三处无人报过的缺陷（issue 素材已备）：①`dev_port` HTTP 模式只 bind 不 serve；②`vite.config.ts` 仅 `/api/terminal/ws` 配 `ws: true`，`/api/ai/events/ws` 等 5 个 WS 端点在 dev 代理下静默断连；③上述关停挂起。

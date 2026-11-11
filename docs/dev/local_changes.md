@@ -22,9 +22,9 @@ git diff main...local        # 相对上游的完整补丁（台账的文件维�
 | 字段 | 当前值 |
 | --- | --- |
 | 台账基准（merge-base） | `412c16a7`（上游 `main`，2026-11-11） |
-| 本地领先 | 9 个提交，6 个主题，61 个文件（+3225 / −1023） |
+| 本地领先 | 20 个提交，9 个主题（条目 1–9），78 个文件（+4441 / −1599） |
 | 本地落后 | 0（当日已同步） |
-| 工作区未提交改动 | 0（2026-11-11 全部提交；个人杂物不纳管：`.zcode/`、`public/`、`il2cppdumper.zip`、截图 jpg） |
+| 工作区未提交改动 | 0（2026-11-11 思考力度胶囊（条目 9）与部署纪律（条目 8）均已提交；个人杂物不纳管：`.zcode/`、`public/`、`il2cppdumper.zip`、截图 jpg） |
 
 ## 同步上游流程
 
@@ -108,6 +108,26 @@ git merge upstream/main      # local 已推送远端，用 merge 而非 rebase
 | 改动 | ①会话侧栏从聊天窗格（`.col-right`）上移为 `.content-area` 层的独立 flex 列，open 状态与三种宽屏布局正交（左栏/分栏/聊天都能开合，打开=只出列表）；②点选会话/新建会话自动 reveal 聊天窗格（保持分栏，已激活会话也 reveal 但不重载）；③header 侧栏开关纯 toggle 化并在「侧栏关 + 聊天隐藏」时显示未读角标（顶替被删竖条的唯一未读面）；④宽屏 Ctrl+K 与聊天输入条「会话」按钮改开固定侧栏（已开则 `revealCurrent()` 滚动聚焦当前行），悬浮抽屉只留给窄屏与智能体选择器；⑤移除右缘竖条 chat rail、文件头「显示/隐藏聊天」按钮、抽屉「固定到侧栏」按钮及 `useSessionSidebar` 四个冗余 API；⑥布局开关补 `data-action="layout-left|split|chat"` 稳定钩子 |
 | 为什么 | 左栏布局下唤出会话区/列表的入口多达 5 个且行为不一；根因是侧栏寄生在聊天窗格内——显示列表必须先展开聊天窗格，左栏布局下产生「左窗格 + 窄聊天列 + 侧栏」的窄缝怪状态。解耦后入口收敛为三个语义不重叠的路径：布局开关（切布局）、Header「+」（新建即见）、侧栏点选（看某个会话） |
 | 上游演进时 | ①`<SessionSidebar>` 的挂载点（`</SplitView>` 之后、`</main>` 之前）与 `wide-screen.css` 的 `> .split-view`/`> .session-sidebar` flex 规则是一对：上游重排 App.vue 模板需按相同语义搬运挂载点；②`handleSessionSelect` 的 reveal 必须保持在跨项目分支与 already-active 守卫**之前**（守卫测试钉了行序）；③override 分流（`registerOpenSessionTabOverride` 闭包）是宽屏侧栏/窄屏抽屉的唯一分叉点；④HeaderLayoutSwitch 的 `data-action` 钩子与 e2e page object 强耦合；⑤上游若复刻 rail/文件头按钮，对照设计文档裁决而非照搬 |
+
+### 8. 本机部署形态固化：systemd 单实例 + 单端口 20000
+
+| 字段 | 内容 |
+| --- | --- |
+| 提交 | 本条目所在提交（AGENTS.md 新增「本机部署与迭代纪律」节；机器级 systemd 单元在 `/etc/systemd/system/clawbench.service`，不进仓库） |
+| 涉及文件 | `AGENTS.md`（末尾追加 local 专属节）、`/etc/systemd/system/clawbench.service`（机器级：`ExecStart=<仓库>/clawbench --port 20000`、`WorkingDirectory=<仓库根>` 走 disk 模式、`Restart=always`、`TimeoutStopSec=12`） |
+| 改动 | 生产服务从 `~/clawbench-local` 版本化目录 + symlink 切换为 systemd 直接运行仓库二进制；确立单端口 20000 决策（否决 dev-server.sh 多端口 HMR 方案）；重启唯一入口 `sudo systemctl restart clawbench`、禁用 `./build.sh --restart`（绕过 systemd 与之抢实例锁，实测中断 4 分钟） |
+| 为什么 | 单人使用/开发/优化，多端口开发态的心智负担高于省下的 40 秒构建；systemd 提供开机自启（经 Windows Startup `ubuntu.vbs` → WSL systemd 链条）与崩溃自愈。部署细节与迭代命令（含 **Go 构建必须带 ldflags 版本戳**，见条目 1 部署纪律）已沉淀至 AGENTS.md，以 AGENTS.md 为准 |
+| 上游演进时 | AGENTS.md 该节独立成块、置于文件末尾，上游合并基本不冲突；若上游原生支持 systemd 部署或单端口开发态，按新形态改写该节并考虑退役 |
+
+### 9. 会话信息行思考力度胶囊
+
+| 字段 | 内容 |
+| --- | --- |
+| 提交 | `365fee34` |
+| 涉及文件 | `web/src/components/chat/ChatInputBar.vue`（胶囊 UI / props / 样式）、`ChatPanelContent.vue`（`thinkingInfoVisible` 计算与透传）、`__tests__/ChatInputBar.test.ts`（+5 用例：显示档位、默认占位、未知时隐藏、点按开抽屉思考页签、群聊不渲染） |
+| 改动 | 会话信息行新增思考力度胶囊：显示下一回合实际生效的档位（会话选择 > 按模型记忆 > agent 默认，复用 `useSessionIdentity` 既有 `currentThinkingEffortName`），点按直达设置抽屉思考页签——与模型胶囊同款一键直达契约；仅当当前档位已解析、或会话（ACP 上报）/agent（BackendSpec）任一方已知档位列表时渲染，群聊会话不渲染（空胶囊点进空页签是死胡同，与抽屉附加页签同一判据） |
+| 为什么 | 档位此前只能进设置抽屉查看/切换，输入条上缺一眼可见的当前档位与快捷入口 |
+| 上游演进时 | 纯增量 props + 展示层，`identity.currentThinkingEffortName`、`getAgentThinkingEffortLevels` 均为既有 API；上游若原生提供同款胶囊可退役 |
 
 ## 已退役
 
