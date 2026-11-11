@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '../fixtures'
 import { ChatPage } from '../pages/chat.page'
+import { NavigationPage } from '../pages/navigation.page'
 
 /**
  * Session-switch scroll memory (issue #576).
@@ -26,14 +27,10 @@ test.describe.serial('Session switch scroll memory', () => {
   test.beforeEach(async ({ page }) => {
     chat = new ChatPage(page)
     await page.goto('/')
-    // The chat pane's collapsed state is persisted per profile, and a collapsed
-    // pane has no visible transcript to scroll. While collapsed a 24px rail
-    // remains at the right edge; it only exists in that state, so its presence
-    // IS the check.
-    const rail = page.locator('[data-action="show-chat"]')
-    if (await rail.isVisible().catch(() => false)) {
-      await rail.click()
-    }
+    // 聊天窗格的收起状态按 profile 持久化；收起时没有可滚动的会话区。
+    // 用布局开关「分栏」段唤回（旧竖条入口已移除，见 NavigationPage）。
+    const nav = new NavigationPage(page)
+    await nav.switchToChat()
     await expect(chat.textarea).toBeVisible({ timeout: 20000 })
   })
 

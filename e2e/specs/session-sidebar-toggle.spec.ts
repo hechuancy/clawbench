@@ -7,7 +7,9 @@ import { test, expect } from '../fixtures'
  *
  *  1. The AppHeader toggle ([data-action="toggle-session-sidebar"]) must open
  *     and close the pinned sidebar from any layout state — session management
- *     used to be reachable only from inside the chat pane.
+ *     used to be reachable only from inside the chat pane. After the decoupling
+ *     it is ALSO the only session-list form on wide screens: the toggle flips
+ *     the sidebar and never touches the pane layout.
  *  2. Dragging the sidebar to its minimum width must keep every header action
  *     button fully painted inside the header. The old header floored the
  *     action row at its labeled width (min-content), so the ActionBar never
@@ -18,9 +20,8 @@ import { test, expect } from '../fixtures'
  *     create a session with the default agent straight from the header (tap —
  *     the picker moved to long press), a real backend flow jsdom cannot cover.
  *
- * The chat-collapsed → toggle flow (re-expand the pane, then open) is covered
- * by SessionSidebarToggle.test.ts against the real layout singletons; an e2e
- * version would need locale-dependent selectors for the layout switch.
+ * The toggle-never-expands-chat contract is covered by SessionSidebarToggle.test.ts
+ * against the real layout singletons, and end-to-end by the 左栏 scenario below.
  */
 test.describe('Session sidebar: header toggle + narrow-width header integrity', () => {
 
@@ -30,6 +31,7 @@ test.describe('Session sidebar: header toggle + narrow-width header integrity', 
 
     const toggle = page.locator('[data-action="toggle-session-sidebar"]')
     const sidebar = page.locator('.session-sidebar')
+    const textarea = page.locator('.chat-textarea')
 
     await expect(toggle).toBeVisible()
     // A fresh profile persists no state, and the panel-state default is open.
@@ -43,6 +45,23 @@ test.describe('Session sidebar: header toggle + narrow-width header integrity', 
     await toggle.click()
     await expect(sidebar).toBeVisible()
     await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+    // 左栏布局（聊天窗格隐藏）：toggle 只翻侧栏开合，聊天窗格保持隐藏——
+    // 解耦后的核心契约，绝不出现「列表 + 窄聊天缝」。
+    await page.locator('[data-action="layout-left"]').click()
+    await expect(textarea).not.toBeVisible()
+    await expect(sidebar).toBeVisible()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+    await toggle.click()
+    await expect(sidebar).not.toBeVisible()
+    await toggle.click()
+    await expect(sidebar).toBeVisible()
+    await expect(textarea).not.toBeVisible()
+
+    // 回到分栏，聊天窗格回来。
+    await page.locator('[data-action="layout-split"]').click()
+    await expect(textarea).toBeVisible()
   })
 
   test('header action buttons stay inside the header at the minimum sidebar width', async ({ page }) => {

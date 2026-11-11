@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '../fixtures'
 import { ChatPage } from '../pages/chat.page'
+import { NavigationPage } from '../pages/navigation.page'
 
 /**
  * Scrolling DURING a streaming reply (issue #632).
@@ -27,10 +28,10 @@ test.describe('Chat scrolling during a streaming reply', () => {
   test.beforeEach(async ({ page }) => {
     chat = new ChatPage(page)
     await page.goto('/')
-    // The chat pane's collapsed state persists per profile; the rail only
-    // exists while collapsed, so its presence IS the check.
-    const rail = page.locator('[data-action="show-chat"]')
-    if (await rail.isVisible().catch(() => false)) await rail.click()
+    // 聊天窗格的收起状态按 profile 持久化；用布局开关「分栏」段唤回
+    // （旧竖条入口已移除，见 NavigationPage）。
+    const nav = new NavigationPage(page)
+    await nav.switchToChat()
     await expect(chat.textarea).toBeVisible({ timeout: 20000 })
     // Drain earlier work, then use a fresh session so history/prepending and
     // mode changes from another spec cannot affect this geometry regression.

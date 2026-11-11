@@ -141,11 +141,13 @@ export class NavigationPage {
     await this.waitForLayoutSettled()
     const wide = await this.page.evaluate(() => window.innerWidth >= 960)
     if (wide) {
-      // In wide mode chat lives in the right pane. When it is collapsed the
-      // pane is `display:none` and a 24px rail remains at the right edge; the
-      // rail only exists while collapsed, so its presence IS the state check.
-      const rail = this.page.locator('[data-action="show-chat"]')
-      if (await rail.isVisible().catch(() => false)) await rail.click()
+      // 布局开关「分栏」段：无论当前是左栏还是聊天布局，一次点击必达分栏
+      // （聊天窗格可见）。旧的右缘竖条入口已随侧栏解耦设计移除。
+      const splitSeg = this.page.locator('[data-action="layout-split"]')
+      if (await splitSeg.isVisible().catch(() => false)) {
+        const textarea = this.page.locator('.chat-textarea')
+        if (!(await textarea.isVisible().catch(() => false))) await splitSeg.click()
+      }
       await expect(this.page.locator('.chat-textarea')).toBeVisible({ timeout: 10000 })
       return
     }
