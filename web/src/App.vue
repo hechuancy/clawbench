@@ -92,12 +92,7 @@
             :ratio="splitRatio"
             :collapsed="leftCollapsed"
             :right-collapsed="chatCollapsed && isWideScreen"
-            :collapse-left="isWideScreen"
-            :collapse-right="isWideScreen"
-            :collapse-left-title="t('nav.hideLeftPane')"
-            :collapse-right-title="t('nav.hideChat')"
             @update:ratio="onSplitRatioChange"
-            @collapse="onSplitCollapse"
           >
             <template #left>
               <div class="col-left" v-show="isWideScreen || activeTab !== 'chat'" @pointerdown="onLeftPanePointerDown" @focusin="setActivePane('left')">
@@ -1250,24 +1245,6 @@ const fileManagerShortcutActive = computed(() => (isWideScreen.value ? activePan
 
 function onSplitRatioChange(ratio: number) {
   setSplitRatio(ratio)
-}
-
-// Divider collapse handles: one per side of the boundary.
-//  - 'right' hides the chat pane; focus moves to the left pane so the user keeps
-//    working there (chat shortcuts are intentionally inactive while hidden).
-//  - 'left' hides the left pane. That is the same action as clicking the active
-//    dock tab again, and it goes through the same setter, so the mutual-exclusion
-//    guard (never both panes hidden) lives in exactly one place.
-// Showing the chat pane again is the rail's job: with the pane `display:none`
-// there is no divider left to put a handle on.
-function onSplitCollapse(side: 'left' | 'right') {
-  if (side === 'right') {
-    setChatCollapsed(true)
-    setActivePane(PANE_LEFT)
-    return
-  }
-  setLeftCollapsed(true)
-  setActivePane(PANE_RIGHT)
 }
 
 // Chat visibility toggle, driven by the right-edge rail: show → the split view

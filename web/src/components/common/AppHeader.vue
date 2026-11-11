@@ -55,13 +55,27 @@
          window, so gating on `!isAppMode` alone hid the tips exactly where they
          are most useful. Only the Android WebView (isAppMode && !isDesktopApp)
          is excluded: touch-only, no keyboard, marquee would just be noise. -->
-    <ShortcutTipTicker
-      v-if="isWideScreen && (!isAppMode || isDesktopApp) && localConfig.headerShortcutTips"
-      :context="shortcutContext"
-      class="header-tips"
-      :title="t('appHeader.shortcutTipsDialog.openTip')"
-      @click="shortcutTipsOpen = true"
+    <!-- Wide-screen layout switch: 左栏 / 分栏 / 聊天, one click each. Replaces
+         the split divider's hover-revealed collapse handles, which sat next to
+         the left pane's scrollbar and mis-fired on the way to it. Gated on
+         isWideScreen — on a phone the split layout does not exist. -->
+    <HeaderLayoutSwitch
+      v-if="isWideScreen"
+      class="header-layout-slot"
     />
+    <!-- Fixed shortcuts entry: opens the same ShortcutTipsDialog the scrolling
+         ticker used to open, without giving it the header's middle band. Same
+         gating as the old ticker: wide screens with a keyboard (desktop shell
+         or a browser; not the touch-only Android WebView). -->
+    <button
+      v-if="isWideScreen && (!isAppMode || isDesktopApp) && localConfig.headerShortcutTips"
+      class="shortcuts-quick-toggle"
+      :title="t('appHeader.shortcutTipsDialog.openTip')"
+      :aria-label="t('appHeader.shortcutTipsDialog.openTip')"
+      @click="shortcutTipsOpen = true"
+    >
+      <Keyboard :size="18" />
+    </button>
     <ShortcutTipsDialog :open="shortcutTipsOpen" @close="shortcutTipsOpen = false" />
 
     <!-- Usage meter capsule. Wide screens only: the header is a desktop
@@ -345,7 +359,7 @@
 </template>
 
 <script setup lang="ts">
-import { Projector, Search, GitBranch, Server, FileText, Settings2, SlidersHorizontal, FolderOpen, FolderTree, X, Palette, Minus } from 'lucide-vue-next'
+import { Projector, Search, GitBranch, Server, FileText, Settings2, SlidersHorizontal, FolderOpen, FolderTree, X, Palette, Minus, Keyboard } from 'lucide-vue-next'
 import { ref, computed, onMounted, onUnmounted, inject, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useGlobalEvents } from '@/composables/useGlobalEvents'
@@ -361,7 +375,7 @@ import ServerSwitchDialog from '@/components/common/ServerSwitchDialog.vue'
 import FileIcon from '@/components/common/FileIcon.vue'
 import CopyButton from '@/components/common/CopyButton.vue'
 import HintTooltip from '@/components/common/HintTooltip.vue'
-import ShortcutTipTicker from '@/components/common/ShortcutTipTicker.vue'
+import HeaderLayoutSwitch from '@/components/common/HeaderLayoutSwitch.vue'
 import { useRecentFiles } from '@/composables/useRecentFiles'
 import { useMenuKeyboard } from '@/composables/useMenuKeyboard'
 import { useDialog } from '@/composables/useDialog.ts'
@@ -380,8 +394,6 @@ import { useWideScreenLayout } from '@/composables/useWideScreenLayout'
 import { useThemePicker } from '@/composables/useThemePicker'
 import ShortcutTipsDialog from '@/components/common/ShortcutTipsDialog.vue'
 import AppMenuPanel from '@/components/common/AppMenuPanel.vue'
-import type { ShortcutContext } from '@/config/shortcutTips'
-import { resolveShortcutContext } from '@/config/shortcutTips'
 import type { Ref } from 'vue'
 
 const { t } = useI18n()
@@ -398,7 +410,7 @@ const {
 const { resources, startBackgroundPolling, stopBackgroundPolling } = useSystemResources()
 const usageMeter = useUsageMeter()
 const switchTab = inject<(tab: string) => void>('switchTab')
-const { isWideScreen, leftTab, activePane } = useWideScreenLayout()
+const { isWideScreen, leftTab } = useWideScreenLayout()
 // Single source for "is the capsule in the header" — the template gate and the
 // `header--has-meter` class (which moves the auto margin onto the capsule, see
 // the style block) must never disagree: a class without the element leaves the
@@ -406,14 +418,6 @@ const { isWideScreen, leftTab, activePane } = useWideScreenLayout()
 // stranded next to the project badge.
 const showUsageMeter = computed(() => isWideScreen.value && usageMeter.hasData.value)
 const activeTab = inject<Ref<string>>('activeTab', ref('chat'))
-const shortcutContext = computed<ShortcutContext>(() =>
-  resolveShortcutContext({
-    isWideScreen: isWideScreen.value,
-    activePane: activePane.value,
-    leftTab: leftTab.value,
-    activeTab: activeTab.value,
-  }),
-)
 const shortcutTipsOpen = ref(false)
 
 // Quick theme picker. The state machine (deferred reveal, persistence, origin)
@@ -1565,13 +1569,36 @@ useMenuKeyboard({ panelRef: branchDropdownPanelRef, isOpen: branchDropdownOpen }
     justify-content: center;
 }
 
-/* Shortcut tips fill the empty middle of the header (PC/web only) */
-.header-tips {
-    flex: 1;
-    min-width: 0;
-    margin: 0 var(--space-4);
-    height: 100%;
-    overflow: hidden;
+/* Right-cluster spacing for the layout switch (左栏/分栏/聊天). The control
+   itself is intrinsic-width (a control, not a filler — design-guide red line
+   3); only this wrapper margin positions it inside the cluster. */
+.header-layout-slot {
+    margin-right: var(--space-2);
+}
+
+/* Keyboard-shortcuts button: same visual grammar as the theme quick toggle
+   (bare icon, --accent-color ink, soft hover fill) but WITHOUT the auto
+   margin — it sits mid-cluster; the usage capsule / theme button own the
+   push to the right edge. */
+.shortcuts-quick-toggle {
+    padding: var(--space-5);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background var(--duration-base), color 0.3s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-color);
+    margin-right: var(--space-2);
+}
+
+@media (hover: hover) {
+    .shortcuts-quick-toggle:hover {
+        background: var(--bg-tertiary);
+    }
 }
 
 /* Usage capsule sits in the right-hand control cluster, just left of the theme

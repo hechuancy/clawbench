@@ -1849,48 +1849,51 @@ describe('AppHeader', () => {
     expect(wrapper.vm.dropdownOpen).toBe(true)
   })
 
-  // ── shortcut tips ticker visibility (keyboard-bearing surfaces) ──
+  // ── shortcuts button visibility (keyboard-bearing surfaces) ──
+  // The scrolling ticker was replaced by a fixed button with the SAME gate:
+  // wide screens with a physical keyboard (Electron shell, browsers), not the
+  // touch-only Android WebView, and hideable via the headerShortcutTips flag.
 
-  it('shows the shortcut tips ticker on the Electron desktop shell', async () => {
+  it('shows the shortcuts button on the Electron desktop shell', async () => {
     // The Electron shell is a native host (isAppMode === true) but a desktop
-    // window with a physical keyboard, so the tips apply there. Gating only on
-    // `!isAppMode` hid them in the desktop app while showing them in a browser
-    // on the same machine.
+    // window with a physical keyboard, so shortcuts apply there. Gating only
+    // on `!isAppMode` hid them in the desktop app while showing them in a
+    // browser on the same machine.
     isAppModeConfig.value = true
     isDesktopAppConfig.value = true
     _setWideScreenForTest(true)
     mountAndTrack()
     await nextTick()
-    expect($('.header-tips')).toBeTruthy()
+    expect($('.shortcuts-quick-toggle')).toBeTruthy()
   })
 
-  it('hides the shortcut tips ticker on the Android WebView', async () => {
+  it('hides the shortcuts button on the Android WebView', async () => {
     // Android reports isAppMode without isDesktopApp — a touch surface with no
-    // physical keyboard, where the marquee would only be noise.
+    // physical keyboard, where keyboard shortcuts are only noise.
     isAppModeConfig.value = true
     isDesktopAppConfig.value = false
     _setWideScreenForTest(true)
     mountAndTrack()
     await nextTick()
-    expect($('.header-tips')).toBeFalsy()
+    expect($('.shortcuts-quick-toggle')).toBeFalsy()
   })
 
-  it('shows the shortcut tips ticker in the web browser', async () => {
+  it('shows the shortcuts button in the web browser', async () => {
     isAppModeConfig.value = false
     isDesktopAppConfig.value = false
     _setWideScreenForTest(true)
     mountAndTrack()
     await nextTick()
-    expect($('.header-tips')).toBeTruthy()
+    expect($('.shortcuts-quick-toggle')).toBeTruthy()
   })
 
-  it('hides the shortcut tips ticker on narrow screens', async () => {
+  it('hides the shortcuts button on narrow screens', async () => {
     isAppModeConfig.value = false
     isDesktopAppConfig.value = false
     _setWideScreenForTest(false)
     mountAndTrack()
     await nextTick()
-    expect($('.header-tips')).toBeFalsy()
+    expect($('.shortcuts-quick-toggle')).toBeFalsy()
   })
 
   // ── switch server / logout ──
