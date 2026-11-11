@@ -10,6 +10,7 @@ import {
   resetWideScreenState,
   _setWideScreenForTest,
 } from '@/composables/useWideScreenLayout'
+import { store } from '@/stores/app.ts'
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -80,23 +81,38 @@ describe('SessionSidebarToggle', () => {
     expect(wrapper.find('[data-action="toggle-session-sidebar"]').classes()).not.toContain('is-active')
   })
 
-  it('re-expands the collapsed chat pane before opening the sidebar', async () => {
-    // The pinned sidebar lives inside the chat pane: with that pane collapsed
-    // the sidebar stays mounted but is not painted, so "open" alone would be
-    // a dead click — the toggle must bring the pane back first. This is the
-    // same "establish what must be open" phrasing the layout switch uses.
+  it('does NOT touch the chat pane in the left-pane layout — list only', async () => {
+    // 解耦后侧栏独立于聊天窗格：左栏布局下点开关只翻侧栏开合，
+    // 绝不展开聊天窗格（旧实现先 setChatCollapsed(false) 再开，产生窄缝）。
     setChatCollapsed(true)
     sidebar.openSidebar()
     const wrapper = mountToggle()
-    // Open but not visible: no active state, open-state wording.
-    expect(wrapper.find('[data-action="toggle-session-sidebar"]').classes()).not.toContain('is-active')
-    expect(wrapper.find('[data-action="toggle-session-sidebar"]').attributes('title')).toBe(OPEN_TITLE)
+    // 打开的侧栏在任何布局下都算可见：active 态 + 关闭文案。
+    expect(wrapper.find('[data-action="toggle-session-sidebar"]').classes()).toContain('is-active')
+    expect(wrapper.find('[data-action="toggle-session-sidebar"]').attributes('title')).toBe(CLOSE_TITLE)
 
     await wrapper.find('[data-action="toggle-session-sidebar"]').trigger('click')
     await nextTick()
 
-    expect(chatCollapsed.value).toBe(false, 'the host pane must be re-expanded')
-    expect(sidebar.open.value).toBe(true, 'the sidebar must be open')
-    expect(wrapper.find('[data-action="toggle-session-sidebar"]').classes()).toContain('is-active')
+    expect(sidebar.open.value).toBe(false)
+    expect(chatCollapsed.value).toBe(true, 'chat pane must stay hidden')
+  })
+
+  it('shows the unread badge only while the sidebar is closed AND chat is hidden', async () => {
+    // 置数：store.state.chatUnreadCount 是 plain reactive 属性，测试内直接赋值。
+    store.state.chatUnreadCount = 2
+    setChatCollapsed(false)
+    sidebar.closeSidebar()
+    const wrapper = mountToggle()
+    // 侧栏关、聊天窗格可见 → 不显示（聊天就地可见，角标是噪音）
+    expect(wrapper.find('.session-sidebar-toggle-badge').exists()).toBe(false)
+    setChatCollapsed(true)
+    await nextTick()
+    // 侧栏关 + 聊天隐藏 + 有未读 → 显示（顶替竖条的唯一场景）
+    expect(wrapper.find('.session-sidebar-toggle-badge').exists()).toBe(true)
+    // 侧栏开着 → 列表行自带未读角标，按钮角标退场
+    sidebar.openSidebar()
+    await nextTick()
+    expect(wrapper.find('.session-sidebar-toggle-badge').exists()).toBe(false)
   })
 })
