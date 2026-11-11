@@ -60,4 +60,20 @@ describe('session sidebar decouple', () => {
     expect(body).toContain('sessionDrawer.open()')
     expect(body).not.toContain('openSessionTabBridge')
   })
+
+  it('removed the chat rail and the file-header chat toggle for good', () => {
+    const app = readWebFile(APP)
+    expect(app).not.toContain('chat-rail')
+    expect(app).not.toContain('has-chat-rail')
+    expect(app).not.toContain('toggleChatPane')
+    expect(app).not.toContain('toggle-maximize-pane')
+    expect(readWebFile('src/components/file/FileHeader.vue')).not.toContain('toggleMaximizePane')
+    // 布局开关是 v-for 渲染：钩子由 `layout-${opt.id}` 动态产出，守卫钉住
+    // 绑定表达式本身 + 三个选项 id（运行时等价性由 e2e 点击 layout-* 钩子证明）。
+    const hls = readWebFile('src/components/common/HeaderLayoutSwitch.vue')
+    expect(hls).toContain(':data-action="`layout-${opt.id}`"')
+    expect(hls).toContain("id: 'left' as LayoutId")
+    expect(hls).toContain("id: 'split' as LayoutId")
+    expect(hls).toContain("id: 'chat' as LayoutId")
+  })
 })

@@ -42,36 +42,6 @@
         <span class="action-label">{{ t('nav.refresh') }}</span>
       </RefreshButton>
 
-      <!-- Collapse / restore the chat pane (wide screen only).
-           The pre-existing affordance is the collapse handle that appears on
-           the split divider under the cursor — a ~14px target on a 6px-wide
-           line, which is both hard to hit and easy to trigger by accident while
-           aiming at the scrollbar. This button is a full-size target in the
-           place the user is already looking, and does the same thing, so the
-           divider handle stays as the discoverable one.
-
-           ICON: PanelRightClose / PanelRightOpen, NOT Maximize2/Minimize2.
-           This toolbar already has a Maximize2 for images ("view full size"),
-           and the two sat three buttons apart wearing the same glyph for
-           completely different actions. Maximize2 also means "open external
-           link", "enlarge a shared screen" and "maximize the OS window"
-           elsewhere in the app — a fifth meaning is unreadable. These two
-           glyphs say what actually happens: the RIGHT pane (chat) closes or
-           opens. -->
-      <button
-        v-if="isWideScreen"
-        class="file-header-btn"
-        data-toolbar-id="maximize"
-        data-action="toggle-maximize-pane"
-        :class="{ active: chatCollapsed }"
-        @click.stop="emit('toggleMaximizePane')"
-        :title="chatCollapsed ? t('nav.showChat') : t('nav.hideChat')"
-        :aria-label="chatCollapsed ? t('nav.showChat') : t('nav.hideChat')"
-      >
-        <PanelRightOpen v-if="chatCollapsed" :size="14" />
-        <PanelRightClose v-else :size="14" />
-        <span class="action-label">{{ chatCollapsed ? t('actionLabels.showChat') : t('actionLabels.hideChat') }}</span>
-      </button>
 
       <!-- TOC button (only for file types that support TOC) -->
       <button v-if="hasToc" data-toolbar-id="toc" class="file-header-btn" :class="{ active: tocOpen }" @click.stop="handleToggleToc" :title="t('file.header.toc')">
@@ -218,7 +188,7 @@ import ActionBar from '@/components/common/ActionBar.vue'
 import ExternalBadge from '@/components/file/ExternalBadge.vue'
 import { isAbsolutePath } from '@/utils/path.ts'
 import { useI18n } from 'vue-i18n'
-import { List, Search, Download, Trash2, GitBranch, TextWrap, Hash, Pin, X, MessageSquare, Share2, ScreenShare, FileOutput, Eye, MoveHorizontal, FolderOpen, Pencil, Code2, Info, Image, ArrowLeft, ArrowRight, Maximize2, PanelRightClose, PanelRightOpen, Mail } from 'lucide-vue-next'
+import { List, Search, Download, Trash2, GitBranch, TextWrap, Hash, Pin, X, MessageSquare, Share2, ScreenShare, FileOutput, Eye, MoveHorizontal, FolderOpen, Pencil, Code2, Info, Image, ArrowLeft, ArrowRight, Maximize2, Mail } from 'lucide-vue-next'
 import { getFileType } from '@/utils/fileType.ts'
 import { fileSupportsToc } from '@/utils/tocSupport.ts'
 import { useAppMode } from '@/composables/useAppMode.ts'
@@ -248,14 +218,11 @@ const props = defineProps({
     canGoForwardFile: Boolean,
     backLabel: String,
 })
-const emit = defineEmits(['delete', 'toggleView', 'showDetails', 'openGitHistory', 'toggleToc', 'toggleSearch', 'openAsText', 'toggleWordWrap', 'toggleLineNumbers', 'toggleStickyScroll', 'refresh', 'overlayClose', 'shareExternal', 'shareLink', 'exportHtml', 'fitWidth', 'toggleEdit', 'setAsBackground', 'navigateBack', 'navigateForward', 'quoteInChat', 'toggleMaximizePane'])
+const emit = defineEmits(['delete', 'toggleView', 'showDetails', 'openGitHistory', 'toggleToc', 'toggleSearch', 'openAsText', 'toggleWordWrap', 'toggleLineNumbers', 'toggleStickyScroll', 'refresh', 'overlayClose', 'shareExternal', 'shareLink', 'exportHtml', 'fitWidth', 'toggleEdit', 'setAsBackground', 'navigateBack', 'navigateForward', 'quoteInChat'])
 
 const { isAppMode } = useAppMode()
 const { t } = useI18n()
-// `chatCollapsed` decides whether the maximize button reads as maximize or
-// restore, so it has to be reactive here — the pane can also be collapsed from
-// the divider handle or the settings drawer while this header is mounted.
-const { isWideScreen, chatCollapsed } = getWideScreenState()
+const { isWideScreen } = getWideScreenState()
 const { refreshFileShare, isFileShared } = useFileShare()
 
 /** The open file lives outside the project root (chat annotations may name any

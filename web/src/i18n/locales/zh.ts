@@ -47,8 +47,6 @@ export default {
     contentSearch: '内容搜索',
     viewDetails: '查看详情',
     markAllRead: '全部已读',
-    showChat: '显示聊天',
-    hideChat: '隐藏聊天',
     help: '帮助',
     keyConfig: '按键配置',
     openDir: '打开目录',
@@ -231,8 +229,6 @@ export default {
     settings: '设置',
     stats: '数据统计',
     hideLeftPane: '隐藏左侧面板',
-    hideChat: '隐藏聊天区域',
-    showChat: '显示聊天区域',
   },
   forge: {
     type: { issues: '议题', prs: '合并', pipelines: '流水线' },

@@ -29,8 +29,6 @@ const i18n = createI18n({
     en: {
       nav: {
         refresh: 'Refresh',
-        hideChat: 'Hide chat area',
-        showChat: 'Show chat area',
         more: 'More',
       },
       common: { download: 'Download', delete: 'Delete', close: 'Close' },
@@ -308,99 +306,6 @@ describe('FileHeader', () => {
       const wrapper = mountHeader({ file: { name: 'photo.png', path: '/tmp/photo.png', content: null } })
       const ids = wrapper.findAll('.header-actions > [data-toolbar-id]').map(b => b.attributes('data-toolbar-id'))
       expect(ids).not.toContain('refresh')
-    })
-  })
-
-  describe('collapse / restore chat pane button', () => {
-    // The chat pane could previously only be collapsed from the divider handle
-    // that appears under the cursor: a ~14px target on a 6px line, hard to hit
-    // and easy to trigger while aiming at the scrollbar. The header button is
-    // the same operation with a full-size target, next to the refresh button
-    // the user already reaches for.
-    beforeEach(() => {
-      mockIsWideScreen.value = true
-      mockChatCollapsed.value = false
-    })
-
-    function maximizeBtn(wrapper: any) {
-      return wrapper.find('[data-action="toggle-maximize-pane"]')
-    }
-
-    it('sits immediately after the refresh button', () => {
-      const wrapper = mountHeader()
-      const titles = wrapper.findAll('.header-actions > .file-header-btn').map(b => b.attributes('title') ?? '')
-      const iRefresh = titles.indexOf('Refresh')
-      const iMax = titles.findIndex(t => t === 'Hide chat area')
-      expect(iRefresh).toBeGreaterThan(-1)
-      expect(iMax, 'the chat-toggle button must be in the inline toolbar').toBeGreaterThan(-1)
-      expect(iMax).toBe(iRefresh + 1)
-    })
-
-    it('emits toggleMaximizePane when clicked', async () => {
-      const wrapper = mountHeader()
-      await maximizeBtn(wrapper).trigger('click')
-      expect(wrapper.emitted('toggleMaximizePane')).toHaveLength(1)
-    })
-
-    it('offers to hide the chat while it is visible', () => {
-      const wrapper = mountHeader()
-      const btn = maximizeBtn(wrapper)
-      expect(btn.attributes('title')).toBe('Hide chat area')
-      // PanelRightClose is the "the right pane goes away" glyph. It must NOT
-      // be Maximize2: this same toolbar has a Maximize2 for images ("view full
-      // size"), and two identical glyphs three buttons apart meaning different
-      // things is unreadable (the reported bug).
-      expect(btn.html()).toContain('lucide-panel-right-close')
-      expect(btn.html()).not.toContain('lucide-maximize-2')
-    })
-
-    it('offers to show the chat once it is collapsed', async () => {
-      mockChatCollapsed.value = true
-      const wrapper = mountHeader()
-      const btn = maximizeBtn(wrapper)
-      expect(btn.attributes('title')).toBe('Show chat area')
-      expect(btn.html()).toContain('lucide-panel-right-open')
-      expect(btn.classes()).toContain('active')
-      // Same handler either way: the button toggles.
-      await btn.trigger('click')
-      expect(wrapper.emitted('toggleMaximizePane')).toHaveLength(1)
-    })
-
-    it('never shares a glyph with the image full-size button', () => {
-      // The regression this guards: both buttons used Maximize2, so an image
-      // showed two identical icons for two unrelated actions.
-      const wrapper = mountHeader({ file: { name: 'photo.png', path: '/tmp/photo.png', content: null } })
-      const chatBtn = maximizeBtn(wrapper)
-      const imageBtn = wrapper.findAll('.header-actions > .file-header-btn')
-        .find(b => (b.attributes('title') ?? '') === 'View image')
-      expect(imageBtn, 'the image full-size button must still exist').toBeTruthy()
-      expect(imageBtn!.html()).toContain('lucide-maximize-2')
-      expect(chatBtn.html()).not.toContain('lucide-maximize-2')
-    })
-
-    it('is absent on a narrow screen, where there is no split to maximize', () => {
-      mockIsWideScreen.value = false
-      const wrapper = mountHeader()
-      expect(maximizeBtn(wrapper).exists()).toBe(false)
-    })
-
-    it('is never lost when the row runs out of room', async () => {
-      // ActionBar folds the tail of the row into its menu, so a narrow pane can
-      // never make this action disappear. jsdom has no layout, so the folding
-      // itself is covered by ActionBar's own test; here we only pin that the
-      // button exists and carries a label for the menu entry to use.
-      const wrapper = mountHeader()
-      const btn = maximizeBtn(wrapper)
-      expect(btn.exists()).toBe(true)
-      expect(btn.find('.action-label').exists()).toBe(true)
-    })
-
-    it('is offered even when the file has no text content', () => {
-      // Unlike refresh (which needs something to re-fetch), maximizing is a
-      // layout action on the pane — an image or an empty buffer can still be
-      // given the whole width.
-      const wrapper = mountHeader({ file: { name: 'photo.png', path: '/tmp/photo.png', content: null } })
-      expect(maximizeBtn(wrapper).exists()).toBe(true)
     })
   })
 

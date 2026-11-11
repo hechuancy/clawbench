@@ -5,6 +5,7 @@
       :key="opt.id"
       type="button"
       class="hls-opt"
+      :data-action="`layout-${opt.id}`"
       :class="{ 'hls-opt--active': activeId === opt.id }"
       :aria-pressed="activeId === opt.id"
       :title="opt.title"

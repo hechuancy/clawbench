@@ -48,8 +48,6 @@ export default {
     contentSearch: 'Search contents',
     viewDetails: 'Details',
     markAllRead: 'Mark all read',
-    showChat: 'Show chat',
-    hideChat: 'Hide chat',
     help: 'Help',
     keyConfig: 'Key config',
     openDir: 'Open folder',
@@ -233,8 +231,6 @@ export default {
     settings: 'Settings',
     stats: 'Statistics',
     hideLeftPane: 'Hide left panel',
-    hideChat: 'Hide chat area',
-    showChat: 'Show chat area',
   },
   forge: {
     type: { issues: 'Issues', prs: 'PRs', pipelines: 'Pipelines' },
