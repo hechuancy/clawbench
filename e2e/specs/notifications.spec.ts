@@ -28,8 +28,8 @@ test.describe('Notifications', () => {
     // runner; a send there is QUEUED behind it, and a queued turn's completion
     // does not record a notification within this spec's budget. A session
     // created for this test has no runner history, so the turn is direct and
-    // terminal. (createSession() — the bare "+" click — only opens the agent
-    // picker; the bridge/API path actually creates and switches to the session.)
+    // terminal. (createSessionWithAgent goes through the window.__clawbench
+    // test bridge — it creates AND switches in one step, no drawer involved.)
     await chat.createSessionWithAgent('acp-mock')
   })
 

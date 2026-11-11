@@ -83,14 +83,16 @@ describe('SessionListHeader', () => {
     expect(trailingIdx).toBeGreaterThan(searchIdx)
   })
 
-  it('centers the counter between two equal-flex groups, without overlapping the actions', () => {
-    // jsdom does not lay out, so the centering is pinned at the source. The
-    // meter is centered by giving the leading and trailing groups equal share
-    // of the free space (`flex: 1 1 0` on both), NOT by absolute positioning:
-    // absolute centering was measured to sit on top of the action buttons on a
-    // narrow sidebar (220–280px), where 4–5 buttons need more than half the
-    // header. The trailing group's `min-width: min-content` is what turns the
-    // impossible case into "slide left" instead of "overlap".
+  it('lays the header out content-sized and right-packed, with NO min-content floor on the actions', () => {
+    // jsdom does not lay out, so the layout contract is pinned at the source.
+    // The old contract — equal-flex pseudo-centering plus a
+    // `min-width: min-content` floor on the actions — was the clipping bug:
+    // the floor pinned the ActionBar at its labeled width, so it never
+    // shrank, its ResizeObserver never fired, its fold-to-menu never ran, and
+    // a narrow sidebar clipped the trailing buttons at the header's own
+    // `overflow: hidden` instead. The current contract: every group is
+    // content-sized and shrinkable, the actions are pushed right by an auto
+    // margin, and degradation happens in order (title → ActionBar fold).
     const src = readWebFile('src/components/session/SessionListHeader.vue')
 
     const ruleFor = (selector: string) => {
@@ -99,20 +101,23 @@ describe('SessionListHeader', () => {
       return src.slice(start, src.indexOf('}', start))
     }
 
-    // The meter must NOT be absolutely positioned any more.
+    // The meter must NOT be absolutely positioned.
     expect(ruleFor('.session-counter')).not.toMatch(/position:\s*absolute/)
 
-    // Both side groups share the free space equally — that is the centering.
+    // The leading group gives way first: content-sized, shrinkable, and
+    // clipping (not spilling under the meter) when it has lost.
     const leadingRule = ruleFor('.session-header-leading')
-    expect(leadingRule).toMatch(/flex:\s*1 1 0/)
-    // …and the leading group clips rather than spilling under the meter when
-    // the header is too narrow for everything (220px + 5 buttons).
+    expect(leadingRule).toMatch(/flex:\s*0 1 auto/)
+    expect(leadingRule).toMatch(/min-width:\s*0/)
     expect(leadingRule).toMatch(/overflow:\s*hidden/)
+
+    // The actions row is content-sized, pushed right by the auto margin, and —
+    // the actual regression — carries NO `min-width: min-content` floor, which
+    // is what used to defeat the ActionBar's folding.
     const actionsRule = ruleFor('.session-header-actions')
-    expect(actionsRule).toMatch(/flex:\s*1 1 0/)
-    // …and the actions floor their shrink at their own content width so the
-    // meter slides left rather than overlapping them.
-    expect(actionsRule).toMatch(/min-width:\s*min-content/)
+    expect(actionsRule).toMatch(/flex:\s*0 1 auto/)
+    expect(actionsRule).toMatch(/margin-left:\s*auto/)
+    expect(actionsRule).not.toMatch(/min-width:\s*min-content/)
   })
 
   it('when pinned, keeps search/create and also shows a refresh button', () => {
@@ -120,6 +125,22 @@ describe('SessionListHeader', () => {
     expect(wrapper.find('.header-action-btn[data-action="search"]').exists()).toBe(true)
     expect(wrapper.find('.header-action-btn[data-action="create"]').exists()).toBe(true)
     expect(wrapper.find('.header-action-btn[data-action="refresh"]').exists()).toBe(true)
+  })
+
+  it('compact form drops the title text but keeps the glyph, meter and every button', () => {
+    // Below ~280px the sidebar cannot hold the (locale-dependent!) title text
+    // beside the meter and the icon row — the English "Sessions" alone is
+    // ~60px, which is exactly the slack a 220px sidebar lacks (measured in
+    // e2e: the ActionBar folded refresh into the "more" menu). The compact
+    // form is the host's explicit narrow signal: ONLY the title text goes.
+    const wrapper = mountHeader({ sessionMaxCount: 10, pinned: true, compact: true })
+    expect(wrapper.find('.session-header-leading .bs-header-title').exists()).toBe(false)
+    expect(wrapper.find('.session-header-leading .bs-header-icon').exists()).toBe(true)
+    // The meter and the built-in buttons are NOT part of what compact removes.
+    expect(wrapper.find('.session-counter').exists()).toBe(true)
+    for (const action of ['search', 'create', 'refresh']) {
+      expect(wrapper.find(`.header-action-btn[data-action="${action}"]`).exists()).toBe(true)
+    }
   })
 
   it('emits refresh when the pinned refresh button is clicked', async () => {
@@ -150,32 +171,29 @@ describe('SessionListHeader', () => {
   })
 })
 
-describe('SessionListHeader — action labels', () => {
-  it('shows the action labels when the header can hold them', async () => {
-    // jsdom has no layout, so the header measures 0 wide and assumes there is
-    // room — the wide-header case. The measure/overflow maths lives in
-    // ActionBar.test.ts; this pins the wiring.
-    const wrapper = mountHeader()
-    // The measurement runs on mount and flips the flag on the next render.
-    await nextTick()
-    const content = wrapper.find('.session-header-actions')
-    expect(content.classes()).toContain('ab--labels')
-    expect(wrapper.findAll('.header-action-btn .action-label').length).toBeGreaterThanOrEqual(2)
-  })
-
-  it('labels the refresh action too when the sidebar is pinned', async () => {
+describe('SessionListHeader — icon-only built-ins', () => {
+  it('renders the built-in buttons WITHOUT text labels', () => {
+    // The sidebar is capped at 480px, where four labeled buttons can never fit
+    // beside the meter and the title, so the built-ins are icon-only on
+    // purpose: ~116dp of icons fits every width down to the 220px minimum, and
+    // labels popping in/out mid-drag cannot happen. The wording lives in the
+    // title/aria-label; the ActionBar fold-to-menu generates its menu items
+    // from those same titles.
     const wrapper = mountHeader({ pinned: true })
-    await nextTick()
-    const refresh = wrapper.find('.header-action-btn[data-action="refresh"]')
-    expect(refresh.find('.action-label').exists()).toBe(true)
+    expect(wrapper.findAll('.header-action-btn .action-label').length).toBe(0)
+    for (const action of ['search', 'create', 'refresh']) {
+      const btn = wrapper.find(`.header-action-btn[data-action="${action}"]`)
+      expect(btn.exists()).toBe(true)
+      expect(btn.attributes('aria-label'), `${action} must keep an accessible name`).toBeTruthy()
+    }
   })
 })
 
 describe('SessionListHeader — slot buttons', () => {
-  it('host-injected buttons carry labels too', async () => {
-    // The shared-sessions / pin / unpin buttons are injected by the parent
-    // through the header's slots; they must follow the same labelling contract
-    // as the built-in buttons.
+  it('host-injected labeled buttons still follow the ActionBar label contract', async () => {
+    // The header's own buttons are icon-only, but the slots stay open to host
+    // buttons (a future entry with a label). Those must still be shown/hidden
+    // by the shared `.ab--labels` class rather than styled ad hoc.
     const wrapper = mount(SessionListHeader, {
       props: { sessionCount: 0, sessionMaxCount: 10 },
       slots: {
@@ -183,11 +201,12 @@ describe('SessionListHeader — slot buttons', () => {
         'actions-end': '<button class="header-action-btn"><span class="action-label">固定</span></button>',
       },
     })
-    // The measurement runs on mount and flips the flag on the next render.
+    // jsdom has no layout, so the bar measures 0 wide and assumes there is
+    // room — the wide-header case. The measure/overflow maths lives in
+    // ActionBar.test.ts; this pins the wiring.
     await nextTick()
     const bar = wrapper.find('.session-header-actions')
-    // Labels on slot buttons are shown/hidden by the same `.ab--labels` class.
     expect(bar.classes()).toContain('ab--labels')
-    expect(wrapper.findAll('.header-action-btn .action-label').length).toBe(4)
+    expect(wrapper.findAll('.header-action-btn .action-label').length).toBe(2)
   })
 })

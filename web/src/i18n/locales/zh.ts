@@ -52,7 +52,6 @@ export default {
     help: '帮助',
     keyConfig: '按键配置',
     openDir: '打开目录',
-    pin: '固定',
     quote: '引用',
     scanPorts: '端口扫描',
     portSettings: '端口设置',
@@ -881,7 +880,7 @@ export default {
       catMCP: 'MCP',
     },
     create: {
-      selectAgentOrLongPress: '选择智能体（长按直接新建）',
+      newSessionOrLongPressSelect: '新建会话（长按选择智能体）',
     },
     modelSwitcher: {
       title: '模型',
@@ -1459,6 +1458,8 @@ export default {
     removeFailed: '移除失败',
     pinToSidebar: '固定到侧栏',
     unpinToSidebar: '取消固定',
+    openSidebar: '打开会话侧栏',
+    quickCreate: '新建会话（长按选择智能体）',
     closeSidebar: '关闭侧栏',
     refresh: '刷新会话列表',
     browseFailed: '加载该项目会话失败',

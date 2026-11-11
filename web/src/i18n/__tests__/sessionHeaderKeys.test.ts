@@ -4,10 +4,12 @@ import zh from '@/i18n/locales/zh'
 
 /**
  * Keys used by the session-list header action buttons (search / create /
- * refresh / pin). A missing key renders the raw key string as the tooltip
- * (e.g. "session.refresh"), so lock the set down for both locales.
+ * refresh / pin) and the header's session toggles (quickCreate for the
+ * new-session button, openSidebar / closeSidebar for the sidebar toggle).
+ * A missing key renders the raw key string as the tooltip (e.g.
+ * "session.refresh"), so lock the set down for both locales.
  */
-const HEADER_ACTION_KEYS = ['title', 'newSession', 'refresh', 'pinToSidebar', 'unpinToSidebar', 'closeSidebar'] as const
+const HEADER_ACTION_KEYS = ['title', 'newSession', 'quickCreate', 'refresh', 'pinToSidebar', 'unpinToSidebar', 'openSidebar', 'closeSidebar'] as const
 
 describe('i18n session header action keys', () => {
   it('en defines every session header action key', () => {

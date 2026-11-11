@@ -156,9 +156,11 @@ test.describe.serial('ACP Session State Persistence', () => {
     expect(originalId).toBeTruthy()
     await chat.waitForSessionMode('plan', 10000)
 
-    // Create a new session with the same agent. This opens the agent selector
-    // drawer; make sure it is dismissed before opening the session list, or its
-    // overlay will intercept clicks on the list.
+    // Create a new session with the same agent. createSessionWithAgent goes
+    // through the window.__clawbench test bridge (create + switch in one step,
+    // no drawer); the Escape here is a leftover guard from when it opened the
+    // agent selector — harmless, and it clears any stale overlay a prior step
+    // may have left behind.
     await chat.createSessionWithAgent('acp-mock')
     await page.keyboard.press('Escape')
     await expect(page.locator('.bs-overlay')).toHaveCount(0, { timeout: 5000 }).catch(() => {})

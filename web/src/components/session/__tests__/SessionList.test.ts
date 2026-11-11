@@ -36,7 +36,7 @@ vi.mock('@/composables/useConversationTarget', async (importOriginal) => {
   return { ...actual, dispatchToTarget: delivery.dispatchToTarget, requestTarget: delivery.requestTarget }
 })
 
-const { mockGetAgentBackend, mockGetAgentName, mockGetAgentModel, mockDialogHolder, mockReconcileRunningSessions, mockRemoveEventHandler, mockEventHolder, mockStore, mockCrossState, mockDraggable, mockToastShow, mockGenerateSessionTitle, mockRenameSessionById } = await vi.hoisted(async () => {
+const { mockGetAgentBackend, mockGetAgentName, mockDialogHolder, mockReconcileRunningSessions, mockRemoveEventHandler, mockEventHolder, mockStore, mockCrossState, mockDraggable, mockToastShow, mockGenerateSessionTitle, mockRenameSessionById } = await vi.hoisted(async () => {
   // The real store exposes a reactive() state, so tests that mutate
   // state.projectRoot (or sessionListVersion) must trigger the component's
   // watchers. A plain object would silently not, making such a test vacuous.
@@ -63,11 +63,6 @@ const { mockGetAgentBackend, mockGetAgentName, mockGetAgentModel, mockDialogHold
   return {
     mockGetAgentBackend: vi.fn(() => ''),
     mockGetAgentName: vi.fn(() => 'Agent'),
-    // Resolves a stored model ID to its display name. Default: no match, so the
-    // chip falls back to the raw ID (existing fixtures use plain ids like
-    // "gpt-4", which read fine). Tests that exercise the ACP variant-id case
-    // override this.
-    mockGetAgentModel: vi.fn(() => undefined),
     mockDialogHolder: { confirm: null as null | ((m: string, o?: any) => Promise<boolean>), prompt: null as null | ((m: string, o?: any) => Promise<string | null>), lastOptions: null as any },
     mockReconcileRunningSessions: vi.fn(),
     mockRemoveEventHandler: vi.fn(),
@@ -108,7 +103,7 @@ vi.mock('@/composables/useGlobalEvents', () => ({
   }),
 }))
 vi.mock('@/composables/useAgents', () => ({
-  useAgents: () => ({ getAgentBackend: mockGetAgentBackend, getAgentName: mockGetAgentName, getAgentAvatar: () => '', getAgentModel: mockGetAgentModel }),
+  useAgents: () => ({ getAgentBackend: mockGetAgentBackend, getAgentName: mockGetAgentName, getAgentAvatar: () => '' }),
   // GroupMemberStack (rendered for group rows) imports this directly; a
   // whitelist mock that omits it makes the import undefined and crashes render.
   getAgentAvatar: () => '',
@@ -535,64 +530,35 @@ describe('SessionList', () => {
       wrapper.unmount()
     })
 
-    it('omits the model chip on a group row but keeps it on a plain row', async () => {
-      // A group's `model` is the host's model, not a property of the group as a
-      // whole — showing it next to the member stack reads as if the group ran on
-      // one model. The chip is suppressed for groups and kept for single-agent
-      // rows (whose model IS meaningful).
+    it('never renders a model chip, on group or plain rows', async () => {
+      // The model chip is gone from the meta line on purpose: it crowded out
+      // the timestamp (which truncated to "202…"), and the model is the least
+      // useful fact for picking a session. No row renders it, whatever the
+      // session's model field carries.
       const groupWithModel = { ...groupSession, model: 'gpt-4' }
+      const plainWithModel = { ...sessionsFixture().s1, model: 'default[]' }
       mockFetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ sessions: [groupWithModel, sessionsFixture().s1], hasMore: false }),
+        json: () => Promise.resolve({ sessions: [groupWithModel, plainWithModel], hasMore: false }),
       })
       const wrapper = await mountList()
       await wrapper.vm.loadSessions()
       await flushPromises()
 
-      expect(wrapper.find('[data-session-id="g1"] .session-item-model').exists()).toBe(false)
-      expect(wrapper.find('[data-session-id="s1"] .session-item-model').exists()).toBe(true)
+      expect(wrapper.findAll('.session-item-model').length).toBe(0)
       wrapper.unmount()
     })
 
-    it('shows the model display name, not the raw stored id', async () => {
-      // Regression: `session.model` stores the model ID (sent back to the
-      // agent), which for ACP backends can be a variant string. Cursor's is
-      // "default[]" while its display name is "Auto" — rendering the raw id
-      // showed "default[]" in the list. The chip must resolve id → name.
-      mockGetAgentModel.mockImplementation((_agentId: string, modelId: string) =>
-        modelId === 'default[]' ? { id: 'default[]', name: 'Auto', default: true } : undefined,
-      )
-      const cursorSession = { ...sessionsFixture().s1, agentId: 'cursor', model: 'default[]' }
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ sessions: [cursorSession], hasMore: false }),
-      })
-      const wrapper = await mountList()
-      await wrapper.vm.loadSessions()
-      await flushPromises()
-
-      const chip = wrapper.find('[data-session-id="s1"] .session-item-model')
-      expect(chip.exists()).toBe(true)
-      expect(chip.text()).toBe('Auto')
-      expect(chip.text()).not.toContain('default[]')
-      wrapper.unmount()
-    })
-
-    it('falls back to the raw model id when the agent list has no match', async () => {
-      // The model was retired, or agents have not loaded yet — showing the id is
-      // still better than a blank chip.
-      mockGetAgentModel.mockReturnValue(undefined)
-      const unknownModel = { ...sessionsFixture().s1, agentId: 'cursor', model: 'retired-model' }
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ sessions: [unknownModel], hasMore: false }),
-      })
-      const wrapper = await mountList()
-      await wrapper.vm.loadSessions()
-      await flushPromises()
-
-      expect(wrapper.find('[data-session-id="s1"] .session-item-model').text()).toBe('retired-model')
-      wrapper.unmount()
+    it('renders the timestamp un-truncated-priority (no shrink) on the meta line', () => {
+      // The time is the meta line's first-priority element: `.session-item-time`
+      // must not yield space (flex-shrink: 0), or a squeezed "202…" replaces a
+      // readable date. jsdom cannot lay out, so the contract is pinned on the
+      // component's own style source.
+      const src = readWebFile('src/components/session/SessionList.vue')
+      const start = src.indexOf('.session-item-time {')
+      expect(start, 'the .session-item-time rule must exist').toBeGreaterThan(-1)
+      const rule = src.slice(start, src.indexOf('}', start))
+      expect(rule).toMatch(/flex-shrink:\s*0/)
     })
 
     it('shows the host-mode tag with a crown icon when the preview carries a host', async () => {

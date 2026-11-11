@@ -257,7 +257,7 @@ export const categoryItems: Record<string, CategoryEntry[]> = {
     // per project. Placed in Display rather than a new card because it is the
     // same kind of per-device preference as UI scale — and it must live next to
     // the things it governs, or nobody finds it.
-    { type: 'item', spec: { labelKey: 'settings.items.layoutMemory', descriptionKey: 'settings.items.layoutMemoryDesc', key: 'layoutMemory', type: 'select', source: 'local', defaultValue: 'global', sectionHeader: 'settings.items.appearanceDisplaySection', options: [
+    { type: 'item', spec: { labelKey: 'settings.items.layoutMemory', descriptionKey: 'settings.items.layoutMemoryDesc', key: 'layoutMemory', type: 'select', source: 'local', defaultValue: 'project', sectionHeader: 'settings.items.appearanceDisplaySection', options: [
       { labelKey: 'settings.items.layoutMemoryGlobal', value: 'global' },
       { labelKey: 'settings.items.layoutMemoryProject', value: 'project' },
     ]}},

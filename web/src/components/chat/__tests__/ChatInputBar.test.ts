@@ -17,6 +17,7 @@ import { _setPlatformForTest, _resetPlatformForTest } from '@/composables/usePla
 import enLocale from '@/i18n/locales/en'
 import zhLocale from '@/i18n/locales/zh'
 import { _resetChatDraftsForTesting } from '@/utils/chatDraftStore.ts'
+import { LongPressDirective } from '@/directives/longPress'
 
 // `isAndroidUA` is a module-level constant read from navigator.userAgent, so
 // the real `_setPlatformForTest` hook cannot drive it. Override only that export
@@ -47,7 +48,7 @@ const i18n = createI18n({
           reloadSession: 'Reopen session',
           attachment: 'Attach',
         },
-        create: { selectAgentOrLongPress: 'New' },
+        create: { newSessionOrLongPressSelect: 'New' },
         input: {
           placeholder: 'Type a message...',
           placeholderCommand: 'Command',
@@ -588,14 +589,22 @@ describe('ChatInputBar', () => {
       global: {
         plugins: [i18n],
         stubs,
-        directives: {
-          'long-press': {
-            mounted: () => {},
-            unmounted: () => {},
-          },
-        },
+        // The REAL directive, not a stub: the create button's long-press test
+        // drives it with raw touch events + fake timers. The directive attaches
+        // listeners but starts no timers at mount, so the other cases here are
+        // unaffected.
+        directives: { 'long-press': LongPressDirective },
       },
     })
+  }
+
+  // jsdom has no Touch/TouchEvent constructor, so build a plain Event and stub
+  // `touches` on it — the directive only reads e.touches[0].{clientX,clientY}
+  // (same trick as directives/__tests__/longPress.test.ts).
+  function makeTouch(type: string, x: number, y: number): Event {
+    const ev = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperty(ev, 'touches', { value: [{ clientX: x, clientY: y }] })
+    return ev
   }
 
   /**
@@ -1549,11 +1558,43 @@ describe('ChatInputBar', () => {
     expect(wrapper.emitted('archive-session')).toBeTruthy()
   })
 
-  it('create button contextmenu emits create-session', async () => {
+  it('create button tap emits create-session (default agent, no picker)', async () => {
+    // Inverted from the original tap-opens-picker design: the common path is
+    // "create with the default agent"; the picker moved to long-press.
+    const wrapper = mountBar()
+    const plusBtn = wrapper.findAll('.chat-action-btn')[1]
+    await plusBtn.trigger('click')
+    expect(wrapper.emitted('create-session')).toBeTruthy()
+  })
+
+  it('create button contextmenu (desktop right-click) emits show-agent-selector', async () => {
+    // Mouse path. A touch long-press ALSO synthesizes contextmenu (both Android
+    // WebView and iOS Safari do), so this handler double-fires behind the
+    // v-long-press path — harmless: show-agent-selector only sets a drawer ref
+    // to true (idempotent), never toggles.
     const wrapper = mountBar()
     const plusBtn = wrapper.findAll('.chat-action-btn')[1]
     await plusBtn.trigger('contextmenu.prevent')
-    expect(wrapper.emitted('create-session')).toBeTruthy()
+    expect(wrapper.emitted('show-agent-selector')).toBeTruthy()
+  })
+
+  it('create button touch long-press emits show-agent-selector (v-long-press, no contextmenu needed)', async () => {
+    // Touch path: a 450ms hold must open the picker via the v-long-press
+    // directive itself. The synthesized contextmenu that browsers fire ~500ms
+    // into the hold is a Desktop-only-complement, not the touch mechanism —
+    // this test dispatches ONLY touchstart + time, so it fails if the button
+    // ever loses the directive binding.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const wrapper = mountBar()
+      const plusBtn = wrapper.findAll('.chat-action-btn')[1]
+      plusBtn.element.dispatchEvent(makeTouch('touchstart', 10, 10))
+      vi.advanceTimersByTime(500)
+      expect(wrapper.emitted('show-agent-selector')).toBeTruthy()
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
   })
 
   it('stop button two-click confirmation triggers cancel', async () => {

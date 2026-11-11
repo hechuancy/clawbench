@@ -9,10 +9,24 @@
         <List :size="14" />
         <span class="action-label">{{ t('chat.actions.wideLabels.session') }}</span>
       </button>
+      <!-- Tap = create with the DEFAULT agent (the common case — no round trip
+           through the picker); long-press / right-click (contextmenu) = the
+           agent selector, for the rarer "this one goes to another agent".
+           Inverted from the original tap-opens-picker design: the mis-tap
+           guard it argued for put the picker in front of every create. -->
+      <!-- Three paths into "new session": tap = create with the DEFAULT agent;
+           touch long-press (v-long-press, 450ms + long-pressing feedback +
+           click-through suppression) and desktop right-click (contextmenu) =
+           the agent selector. The touch long-press ALSO synthesizes a
+           contextmenu on mobile browsers, so the selector emit can fire twice
+           for one hold — harmless, it only sets the drawer ref to true
+           (idempotent, never toggles). -->
       <button class="chat-action-btn"
-        @click="handleCreateClick"
-        @contextmenu.prevent="emit('create-session')"
-        :title="t('chat.create.selectAgentOrLongPress')">
+        v-long-press="() => emit('show-agent-selector')"
+        @click="emit('create-session')"
+        @contextmenu.prevent="emit('show-agent-selector')"
+        :title="t('chat.create.newSessionOrLongPressSelect')"
+        :aria-label="t('chat.create.newSessionOrLongPressSelect')">
         <Plus :size="14" />
         <span class="action-label">{{ t('chat.actions.wideLabels.create') }}</span>
       </button>
@@ -1939,15 +1953,6 @@ const hasAttachmentTags = computed(() =>
 const recentReferencedFiles = computed(() => {
   return computeRecentReferencedFiles(props.messages, props.attachedFiles, props.currentFile?.path)
 })
-
-function handleCreateClick() {
-  // Always open the agent selector, even with a single agent — a one-tap
-  // "create" here is easy to mis-tap on mobile and would create an empty
-  // session. Requiring an explicit agent selection prevents accidental
-  // session creation. 始终弹智能体选择器（哪怕只有一个智能体）——
-  // 一次误触即建空会话在移动端很容易发生，强制选择智能体可避免误建。
-  emit('show-agent-selector')
-}
 
 async function handleArchive() {
   if (!props.currentSessionId) return

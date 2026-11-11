@@ -140,10 +140,6 @@
                       <component :is="groupModeIcon(row.session)" :size="10" />
                       {{ groupModeLabel(row.session) }}
                     </span>
-                    <!-- A group's `model` is the HOST's model, not a property of
-                         the group; showing it beside the member stack reads as
-                         "the group runs on one model". Suppressed for groups. -->
-                    <span v-if="row.session.model && row.session.sessionType !== 'group'" class="session-item-model">{{ sessionModelLabel(row.session) }}</span>
                   </div>
                   <!-- Fork-group toggle, inlined on the anchor row itself.
                        A separate header row made the group read as "a session,
@@ -361,7 +357,7 @@ const emit = defineEmits(['select', 'archive', 'destroy', 'update:activeTab'])
 const DRAG_FALLBACK_TOLERANCE = 12
 
 const { t } = useI18n()
-const { getAgentBackend, getAgentName, getAgentAvatar, getAgentModel } = useAgents()
+const { getAgentBackend, getAgentName, getAgentAvatar } = useAgents()
 const { isSessionShared, setSharedSessionIds } = useSessionShare()
 const dialog = useDialog()
 const toast = useToast()
@@ -586,22 +582,6 @@ function sessionAgentBackend(session) {
 
 function sessionAgentAvatar(session) {
   return getAgentAvatar(session?.agentId) || session?.agentAvatar || ''
-}
-
-/**
- * Display name for a session row's model chip.
- *
- * `session.model` stores the model ID (it is what gets sent back to the agent),
- * which for ACP backends can be a variant string like cursor's "default[]" —
- * meaningless to the user. Resolve it against the agent's model list to show the
- * human name ("Auto"); fall back to the raw ID when the list has no match (the
- * model was retired, or the agents list has not loaded yet).
- */
-function sessionModelLabel(session) {
-  const id = session?.model
-  if (!id) return ''
-  const model = session.agentId ? getAgentModel(session.agentId, id) : undefined
-  return model?.name || id
 }
 
 /**
@@ -1809,6 +1789,14 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Time is the first-priority element of the meta line: it never yields
+     space (a truncated "202…" reads as a broken date). The agent chip below
+     is flex-shrink:0 too, so on a pathologically narrow sidebar neither
+     element's own ellipsis can fire — the meta line's overflow:hidden clips
+     the TRAILING chip instead, which is the intended loser. The ellipsis
+     declarations are inert belt-and-braces, kept for the day either rule
+     regains shrink. */
+  flex-shrink: 0;
 }
 
 .session-item-agent {
@@ -1841,7 +1829,7 @@ onUnmounted(() => {
 /* The group's chat mode ("host mode" / "free mode") as an INDEPENDENT tag with
    its own glyph (crown / @), trailing the member stack. It carries a faint pill
    background so it reads as metadata about the group rather than a suffix of the
-   stack; the muted tint keeps it subordinate to the title and the model chip. */
+   stack; the muted tint keeps it subordinate to the title. */
 .session-item-group-mode {
   display: inline-flex;
   align-items: center;
@@ -1852,20 +1840,6 @@ onUnmounted(() => {
   border-radius: var(--radius-xs);
   background: rgba(100, 100, 100, 0.08);
   color: var(--text-muted, #999);
-  white-space: nowrap;
-}
-
-.session-item-model {
-  font-size: var(--font-size-2xs);
-  padding: 1px var(--space-2);
-  border-radius: var(--radius-xs);
-  font-weight: var(--font-weight-medium);
-  flex-shrink: 1;
-  background: rgba(100, 100, 100, 0.08);
-  color: var(--text-muted, #999);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

@@ -120,7 +120,10 @@ export class ChatPage {
     await expect(this.page.locator('.queued-bar')).toHaveCount(0, { timeout })
   }
 
-  /** Click the new session button (the "+" button in chat action row) */
+  /** Click the new session button (the "+" button in chat action row).
+   *  Tap = create directly with the DEFAULT agent (the long-press/contextmenu
+   *  stroke opens the agent selector) — no spec currently uses this helper's
+   *  picker flow; `createSessionWithAgent` goes through the test bridge. */
   async createSession() {
     // The second .chat-action-btn is the "new session" button
     await this.page.locator('.chat-action-btn').nth(1).click()

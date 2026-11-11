@@ -29,11 +29,13 @@
           @create="handleCreateClick"
         >
           <!-- Pin sits in the trailing slot so it is the right-most control in
-               the header, after search/create. -->
+               the header, after search/create. Icon-only like the rest of the
+               row; the button is wide-screen only (the pinned sidebar it opens
+               does not exist on a phone), so the wording lives in the hover
+               tooltip. -->
           <template #actions-end>
-            <button v-if="isWideScreen" class="header-action-btn" data-action="pin" @click.stop="$emit('pin')" :title="t('session.pinToSidebar')">
+            <button v-if="isWideScreen" class="header-action-btn" data-action="pin" @click.stop="$emit('pin')" :title="t('session.pinToSidebar')" :aria-label="t('session.pinToSidebar')">
               <PanelRight :size="16" />
-              <span class="action-label">{{ t('actionLabels.pin') }}</span>
             </button>
           </template>
         </SessionListHeader>

@@ -53,7 +53,6 @@ export default {
     help: 'Help',
     keyConfig: 'Key config',
     openDir: 'Open folder',
-    pin: 'Pin',
     quote: 'Quote',
     scanPorts: 'Scan',
     portSettings: 'Settings',
@@ -879,7 +878,7 @@ export default {
       catMCP: 'MCP',
     },
     create: {
-      selectAgentOrLongPress: 'Select agent (long press to create new)',
+      newSessionOrLongPressSelect: 'New session (long press to select agent)',
     },
     modelSwitcher: {
       title: 'Model',
@@ -1453,6 +1452,8 @@ export default {
     removeFailed: 'Failed to remove',
     pinToSidebar: 'Pin to sidebar',
     unpinToSidebar: 'Unpin',
+    openSidebar: 'Open session sidebar',
+    quickCreate: 'New session (long press to select agent)',
     closeSidebar: 'Close sidebar',
     refresh: 'Refresh session list',
     browseFailed: 'Failed to load this project’s sessions',

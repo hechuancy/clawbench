@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-  <header class="header" :class="{ 'header--frameless': hasCustomControls, 'header--has-meter': showUsageMeter }">
+  <header class="header" :class="{ 'header--frameless': hasCustomControls }">
     <button
       class="header-logo-btn"
       type="button"
@@ -49,19 +49,26 @@
       </button>
     </div>
 
-    <!-- Shortcut tips marquee: fills the empty middle area.
-         Shown wherever there is a physical keyboard, which includes the Electron
-         desktop shell — it reports isAppMode (native host) but is a desktop
-         window, so gating on `!isAppMode` alone hid the tips exactly where they
-         are most useful. Only the Android WebView (isAppMode && !isDesktopApp)
-         is excluded: touch-only, no keyboard, marquee would just be noise. -->
+    <!-- Right-hand control cluster. ONE container owns the header's single
+         `margin-left: auto`, so the push to the right edge no longer depends
+         on which conditional control happens to render first (the old chain —
+         capsule when present, theme button as fallback — stranded the cluster
+         whenever both were absent or split the slack when both existed). The
+         layout switch (左栏/分栏/聊天) lives here too: its buttons are
+         fixed-width like the rest of the cluster, so pinning the group right
+         keeps the project/branch/file capsule free to grow on the left.
+         Teleporting panels below (AppMenuPanel / PopupMenu / dialogs) render
+         nothing in-flow; they sit next to their anchor buttons for readability
+         only. -->
+    <div class="header-right-cluster">
     <!-- Wide-screen layout switch: 左栏 / 分栏 / 聊天, one click each. Replaces
          the split divider's hover-revealed collapse handles, which sat next to
          the left pane's scrollbar and mis-fired on the way to it. Gated on
-         isWideScreen — on a phone the split layout does not exist. -->
+         isWideScreen — on a phone the split layout does not exist. Lives at the
+         head of the right-hand cluster: fixed-width like its neighbours, so the
+         project/branch/file capsule on the left keeps all the flex slack. -->
     <HeaderLayoutSwitch
       v-if="isWideScreen"
-      class="header-layout-slot"
     />
     <!-- Fixed shortcuts entry: opens the same ShortcutTipsDialog the scrolling
          ticker used to open, without giving it the header's middle band. Same
@@ -81,11 +88,9 @@
     <!-- Usage meter capsule. Wide screens only: the header is a desktop
          surface, and on a phone the same numbers live at the end of the
          system-resources popover (SystemResourcesPanel).
-         Sits after the tips ticker so it lands in the right-hand control
-         cluster, immediately left of the theme button. It carries the
-         margin-left:auto that used to sit on the theme button — with both set,
-         the two auto margins would split the slack and strand the capsule in
-         the middle. -->
+         Sits inside the right-hand control cluster, immediately left of the
+         theme button. Spacing is the cluster container's gap; the push to the
+         right edge belongs to `.header-right-cluster`, not to any member. -->
     <!-- Shown whenever the first fetch has landed, WITH or WITHOUT a rule: with
          no rule the component renders a placeholder entry that leads to the
          settings page. Gating on `enabled` would hide the only hint that the
@@ -294,6 +299,17 @@
       <component v-else :is="PressureIcon" :size="18" class="pressure-icon" />
     </button>
 
+    <!-- Quick new-session button: tap creates with the default agent, long
+         press opens the agent selector (same two-stroke contract as the chat
+         pane's "+" — see SessionCreateButton). Wide screens only, gated inside
+         the component. Sits between the server button and the sidebar toggle:
+         the two session entry points read as one group at the cluster's end. -->
+    <SessionCreateButton />
+    <!-- Global entry to the pinned session sidebar (wide screens only, gated
+         inside the component). Sits at the END of the icon cluster. -->
+    <SessionSidebarToggle />
+    </div>
+
     <!-- Server info + resources popup (both Web and APP mode) -->
     <PopupMenu v-model:show="resourcesMenuOpen" :target-element="serverBtnRef" :max-width="320" :max-height="440" :menu-items-count="11" anchor="right">
       <SystemResourcesPanel ref="resourcesPanelRef" :show-server-switch="isAppMode" :ws-status="wsStatus" @switch-server="openServerSwitch" @open-usage-settings="handleOpenUsageSettings" />
@@ -376,6 +392,8 @@ import FileIcon from '@/components/common/FileIcon.vue'
 import CopyButton from '@/components/common/CopyButton.vue'
 import HintTooltip from '@/components/common/HintTooltip.vue'
 import HeaderLayoutSwitch from '@/components/common/HeaderLayoutSwitch.vue'
+import SessionSidebarToggle from '@/components/session/SessionSidebarToggle.vue'
+import SessionCreateButton from '@/components/session/SessionCreateButton.vue'
 import { useRecentFiles } from '@/composables/useRecentFiles'
 import { useMenuKeyboard } from '@/composables/useMenuKeyboard'
 import { useDialog } from '@/composables/useDialog.ts'
@@ -411,11 +429,9 @@ const { resources, startBackgroundPolling, stopBackgroundPolling } = useSystemRe
 const usageMeter = useUsageMeter()
 const switchTab = inject<(tab: string) => void>('switchTab')
 const { isWideScreen, leftTab } = useWideScreenLayout()
-// Single source for "is the capsule in the header" — the template gate and the
-// `header--has-meter` class (which moves the auto margin onto the capsule, see
-// the style block) must never disagree: a class without the element leaves the
-// theme button unpushed, and an element without the class leaves the capsule
-// stranded next to the project badge.
+// Single source for "is the capsule in the header" — the template gate lives
+// here alone; the right-hand cluster's push is owned by `.header-right-cluster`
+// (see the style block), so the capsule rendering or not cannot move anything.
 const showUsageMeter = computed(() => isWideScreen.value && usageMeter.hasData.value)
 const activeTab = inject<Ref<string>>('activeTab', ref('chat'))
 const shortcutTipsOpen = ref(false)
@@ -1517,6 +1533,23 @@ useMenuKeyboard({ panelRef: branchDropdownPanelRef, isOpen: branchDropdownOpen }
     line-height: var(--line-height-snug);
 }
 
+/* The header's right-hand control cluster: ONE container owns the header's
+   single `margin-left: auto`. Every in-flow control on the right lives inside
+   it (layout switch, shortcuts button, usage capsule, theme, server, the two
+   session toggles), and intra-cluster spacing is just the shared `gap` — the
+   only per-button margins left are the negative tucks that fuse the icon
+   triple (theme | server | sessions) into one dense group. The old scheme
+   floated the auto margin between the capsule and the theme button depending
+   on which conditional rendered; a container that ALWAYS renders ends the
+   drift. */
+.header-right-cluster {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
 /* Quick theme picker */
 .theme-quick-toggle {
     padding: var(--space-5);
@@ -1530,21 +1563,6 @@ useMenuKeyboard({ panelRef: branchDropdownPanelRef, isOpen: branchDropdownOpen }
     align-items: center;
     justify-content: center;
     color: var(--accent-color);
-    /* Pushes the theme button (and everything after it) to the right edge.
-       This is the FALLBACK: it must stay for the case where no capsule is
-       rendered at all (narrow screens, or before the first fetch lands), or the
-       whole right-hand cluster would drift left. When the capsule IS present it
-       takes the auto margin instead and this one is cancelled — two would split
-       the slack and strand the capsule in the middle. */
-    margin-left: auto;
-}
-
-/* The capsule owns the push while it exists. `margin-left: 0` rather than
-   `auto` on the theme button: with only one auto margin the slack all lands on
-   the capsule, which is what puts the capsule itself against the right edge
-   instead of leaving it wherever the flow dropped it. */
-.header--has-meter .theme-quick-toggle {
-    margin-left: 0;
 }
 
 @media (hover: hover) {
@@ -1569,17 +1587,9 @@ useMenuKeyboard({ panelRef: branchDropdownPanelRef, isOpen: branchDropdownOpen }
     justify-content: center;
 }
 
-/* Right-cluster spacing for the layout switch (左栏/分栏/聊天). The control
-   itself is intrinsic-width (a control, not a filler — design-guide red line
-   3); only this wrapper margin positions it inside the cluster. */
-.header-layout-slot {
-    margin-right: var(--space-2);
-}
-
 /* Keyboard-shortcuts button: same visual grammar as the theme quick toggle
-   (bare icon, --accent-color ink, soft hover fill) but WITHOUT the auto
-   margin — it sits mid-cluster; the usage capsule / theme button own the
-   push to the right edge. */
+   (bare icon, --accent-color ink, soft hover fill). Spacing comes from the
+   cluster container's gap — no per-button margins here. */
 .shortcuts-quick-toggle {
     padding: var(--space-5);
     border: none;
@@ -1592,7 +1602,6 @@ useMenuKeyboard({ panelRef: branchDropdownPanelRef, isOpen: branchDropdownOpen }
     align-items: center;
     justify-content: center;
     color: var(--accent-color);
-    margin-right: var(--space-2);
 }
 
 @media (hover: hover) {
@@ -1602,23 +1611,12 @@ useMenuKeyboard({ panelRef: branchDropdownPanelRef, isOpen: branchDropdownOpen }
 }
 
 /* Usage capsule sits in the right-hand control cluster, just left of the theme
-   button. It owns the `margin-left: auto` that pushes the cluster right, and the
-   theme button drops its own while the capsule is present (see
-   `.header--has-meter` below). Two auto margins would split the slack and strand
-   the capsule mid-header.
-
-   Why the capsule and not the theme button: the capsule is the FIRST element of
-   the cluster (everything before it — badge capsule, layout switch, shortcuts
-   button — is intrinsic-width), so the auto margin on it is what keeps the
-   cluster pinned right no matter which of the preceding controls render. The
-   old tips ticker (`flex: 1`) used to eat the slack instead, which is why an
-   auto margin on the theme button looked correct on a PC — until the ticker
-   was absent on tablets and the capsule collapsed back beside the project
-   badge. That ticker is gone; this margin is the only thing defining the
-   cluster, which is exactly what the wiring test asserts. */
+   button. Spacing is the cluster container's gap; the push to the right edge
+   belongs to `.header-right-cluster` (see that rule) — the capsule carries no
+   margins of its own any more, so conditional rendering of the capsule (or any
+   other cluster member) cannot move the cluster. */
 .usage-meter-slot {
-    margin-left: auto;
-    margin-right: var(--space-2);
+    flex-shrink: 0;
 }
 
 @media (hover: hover) {

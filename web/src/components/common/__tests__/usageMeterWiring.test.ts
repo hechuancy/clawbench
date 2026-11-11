@@ -53,11 +53,9 @@ describe('usage meter — capsule wiring', () => {
 
   it('the capsule sits after the layout controls and before the theme button', () => {
     // Right-hand control cluster: layout switch / shortcuts button → capsule →
-    // theme → server. The scrolling tips ticker that used to eat the header's
-    // slack (and drag the capsule along) is gone; the controls that precede
-    // the capsule are all intrinsic-width, so only the capsule's own auto
-    // margin (asserted below) defines the cluster — this test pins the DOM
-    // order so a future filler element cannot sneak in between unnoticed.
+    // theme → server. This pins the DOM order so a future element cannot sneak
+    // in between unnoticed; the push to the right edge is the cluster
+    // container's job (asserted in headerClusterSpacing.test.ts).
     const layout = header.indexOf('<HeaderLayoutSwitch')
     const capsule = header.indexOf('<UsageMeterPopover')
     const theme = header.indexOf('class="theme-quick-toggle"')
@@ -68,35 +66,27 @@ describe('usage meter — capsule wiring', () => {
     expect(capsule).toBeLessThan(theme)
   })
 
-  it('the capsule owns the push to the right edge, not the theme button', () => {
-    // The capsule must be pinned right by its OWN `margin-left: auto`.
-    //
-    // This used to be the theme button's job, which only looked correct because
-    // the shortcut-tips ticker (`flex: 1`) ate the slack and dragged the capsule
-    // along with it. The ticker is hidden on tablets / the Android WebView
-    // (`isAppMode && !isDesktopApp`), so there the capsule collapsed back beside
-    // the project badge while the theme button flew to the right edge alone.
-    // Asserting the auto margin lives on the FIRST element of the cluster is the
-    // only source-level way to state "alignment must not depend on the ticker".
-    const slot = header.slice(header.indexOf('.usage-meter-slot {'))
-    expect(slot.slice(0, slot.indexOf('}'))).toContain('margin-left: auto')
+  it('the push to the right edge is the cluster container, not any member', () => {
+    // The auto margin used to float between the capsule (when rendered) and the
+    // theme button (fallback) — a chain that drifted whenever a conditional
+    // control appeared in only one of the two states. Now `.header-right-cluster`
+    // ALWAYS renders and owns the header's single auto margin; no member may
+    // carry its own.
+    const cluster = header.slice(header.indexOf('.header-right-cluster {'))
+    expect(cluster.slice(0, cluster.indexOf('}'))).toContain('margin-left: auto')
 
-    // The theme button keeps its auto margin as the fallback for when no capsule
-    // is rendered at all (narrow screens, first fetch not landed yet)…
+    const slot = header.slice(header.indexOf('.usage-meter-slot {'))
+    expect(slot.slice(0, slot.indexOf('}'))).not.toContain('margin-left: auto')
+
     const themeRule = header.slice(header.indexOf('.theme-quick-toggle {'))
-    expect(themeRule.slice(0, themeRule.indexOf('}'))).toContain('margin-left: auto')
-    // …but drops it while the capsule is present, or the two auto margins would
-    // split the slack and strand the capsule in the middle.
-    const hasMeter = header.slice(header.indexOf('.header--has-meter .theme-quick-toggle {'))
-    expect(hasMeter.slice(0, hasMeter.indexOf('}'))).toContain('margin-left: 0')
+    expect(themeRule.slice(0, themeRule.indexOf('}'))).not.toContain('margin-left')
   })
 
-  it('the header--has-meter class and the capsule render gate cannot drift', () => {
-    // Both must read the same expression: a class without the element leaves the
-    // theme button unpushed (cluster drifts left), an element without the class
-    // leaves the capsule stranded next to the project badge.
-    expect(header).toMatch(/'header--has-meter': showUsageMeter/)
-    expect(header).toMatch(/v-if="showUsageMeter"/)
+  it('the per-capsule margin scheme stays retired', () => {
+    // Tombstone: `header--has-meter` used to toggle the theme button's auto
+    // margin. Reintroducing the class — or any second auto margin in the
+    // header — would split the slack and strand the cluster mid-header again.
+    expect(header).not.toContain('header--has-meter')
   })
 
   it('the popover reacts to the open request (notification tap)', () => {

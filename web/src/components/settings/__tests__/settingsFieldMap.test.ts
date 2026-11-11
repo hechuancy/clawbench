@@ -198,6 +198,23 @@ describe('settingsFieldMap', () => {
     }
   })
 
+  it('layout memory defaults to per-project and agrees with the composable default', () => {
+    // Flipped from 'global' deliberately: different projects use different pane
+    // arrangements, so per-project matches most users' mental model. A user who
+    // explicitly picked 'global' keeps it (the persisted value wins); the
+    // default only speaks for the never-configured case. The panel's
+    // defaultValue and the composable's runtime value must AGREE — they are
+    // read from a fresh (empty) storage here, so both reflect their defaults —
+    // or the settings page would show one thing while the panel-state layer
+    // runs another until the user happens to open the settings page.
+    const entry = categoryItems['appearance'].find(e => e.type === 'item' && e.spec.key === 'layoutMemory')
+    expect(entry, 'the layoutMemory row must exist in the appearance category').toBeDefined()
+    if (entry!.type !== 'item') throw new Error('expected item entry for layoutMemory')
+    expect(entry!.spec.source).toBe('local')
+    expect(entry!.spec.defaultValue).toBe('project')
+    expect(entry!.spec.defaultValue).toBe(localConfig.layoutMemory)
+  })
+
   it('buildFontFamilyOptions returns grouped options with badges/previews', () => {
     const mono = buildFontFamilyOptions(true)
     const ui = buildFontFamilyOptions(false)

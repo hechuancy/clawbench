@@ -408,9 +408,11 @@ const localDefaults: Record<string, string | boolean | number | null> = {
   fileView: 'list',
   filePreviewMode: false,
   // How the layout (split ratios, collapses, dock/tab choices) is remembered:
-  // one shared record for every project, or one per project. Default 'global'
-  // keeps the pre-existing behaviour.
-  layoutMemory: 'global',
+  // one shared record for every project, or one per project. Default 'project':
+  // different projects use different pane arrangements (a wide file pane for a
+  // reading project, a wide chat for an agent project), so per-project is the
+  // layout that matches most users' mental model — 'global' is the opt-out.
+  layoutMemory: 'project',
   messageDisplayMode: 'mixed',
   // Where the OTHER projects' sessions go in the session list:
   //   'strip' — the default: cards under the project's own rows, one scroll.

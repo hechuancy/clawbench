@@ -93,7 +93,7 @@ const i18n = createI18n({
             refresh: '刷新',
           },
         },
-        create: { selectAgentOrLongPress: '选择Agent' },
+        create: { newSessionOrLongPressSelect: '选择Agent' },
         delete: { confirm: '确认删除？' },
         input: {
           clearInput: '清除输入',

@@ -7,6 +7,7 @@
           :session-count="sessionCount"
           :session-max-count="sessionMaxCount"
           :pinned="true"
+          :compact="width < 280"
           :refreshing="sessionRefreshing"
           @refresh="handleRefresh"
           @open-search="$emit('open-session-search')"
@@ -15,11 +16,12 @@
           <!-- Close sits in the trailing slot so it is the right-most control in
                the header, after search/create/refresh. It is a plain utility
                action like refresh — no accent tint — and uses the close (X)
-               glyph so it reads as "collapse this panel". -->
+               glyph so it reads as "collapse this panel". Icon-only like the
+               rest of the row (the sidebar is too narrow for labels to ever
+               fit; the wording lives in the title tooltip). -->
           <template #actions-end>
-            <button class="header-action-btn sidebar-close-btn" @click.stop="$emit('close')" :title="t('session.closeSidebar')">
+            <button class="header-action-btn sidebar-close-btn" data-action="close" @click.stop="$emit('close')" :title="t('session.closeSidebar')" :aria-label="t('session.closeSidebar')">
               <X :size="16" />
-              <span class="action-label">{{ t('session.closeSidebar') }}</span>
             </button>
           </template>
         </SessionListHeader>
