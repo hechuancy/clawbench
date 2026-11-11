@@ -99,6 +99,16 @@ git merge upstream/main      # local 已推送远端，用 merge 而非 rebase
 | 为什么 | 上游策略下竖长 mermaid 缩到标签不可读、小图反被放大铺满整栏；平板反馈文档面 60dvh「太矮」而全局 75dvh 曾因手机聊天放不下回退——按表面分流是唯一能同时满足两者的方案 |
 | 上游演进时 | `media-block.css` 的 `--media-window`/`.svg-scroll` 与 `svgMediaFit.ts` 的 `mediaHeightFrac()`/`scrollbarAllowance()` 是本地配对契约（上游单侧改动即失配，测试会拦）；上游若原生实现滚动窗口或表面分流可退役 |
 
+### 7. 会话侧栏解耦与宽屏会话入口收窄
+
+| 字段 | 内容 |
+| --- | --- |
+| 提交 | `ead9a256`…`8376325`（feat ×4 + refactor + test(e2e)，详见 `git log`） |
+| 涉及文件 | `web/src/App.vue`（SessionSidebar 挂载点/content-area、handleSessionSelect reveal、override 分流、删 rail/toggleChatPane/has-chat-rail）、`web/css/wide-screen.css`（flex 兄弟列规则）、`web/src/components/session/`：`SessionSidebarToggle.vue`（纯 toggle + 未读角标）、`SessionCreateButton.vue`（goToChat 宽屏 reveal）、`SessionList.vue`（`revealActive()` + 滚动容器 tabindex）、`SessionSidebar.vue`（`revealCurrent()` expose）、`SessionDrawer.vue`（删 pin）、`web/src/components/file/{FileHeader,FileOverlay,FileViewer}.vue`（删聊天开关 emit 链）、`web/src/components/common/HeaderLayoutSwitch.vue`（`data-action="layout-*"` 钩子）、`web/src/composables/useSessionSidebar.ts`（删 pinToSidebar/unpinToDrawer/openSessionTabBridge/registerOpenDrawer）、`web/src/i18n/locales/{zh,en}.ts`（删 session.pinToSidebar/unpinToSidebar、nav.showChat/hideChat、actionLabels.showChat/hideChat）；测试：`sessionSidebarDecouple.test.ts`（新增守卫）、`SessionSidebarToggle/SessionCreateButton/SessionDrawer/useSessionSidebar/sessionHeaderKeys/FileHeader` 各测试更新、删 `chatPaneCollapseAffordance.test.ts`；e2e：`session_sidebar_decouple.spec.ts`（新增）、`navigation.page.ts`/`chat-scroll-memory`/`chat-scroll-streaming`/`session-sidebar-toggle` 迁移；设计文档与计划在 `docs/superpowers/{specs,plans}/2026-11-11-session-sidebar-decouple*.md` |
+| 改动 | ①会话侧栏从聊天窗格（`.col-right`）上移为 `.content-area` 层的独立 flex 列，open 状态与三种宽屏布局正交（左栏/分栏/聊天都能开合，打开=只出列表）；②点选会话/新建会话自动 reveal 聊天窗格（保持分栏，已激活会话也 reveal 但不重载）；③header 侧栏开关纯 toggle 化并在「侧栏关 + 聊天隐藏」时显示未读角标（顶替被删竖条的唯一未读面）；④宽屏 Ctrl+K 与聊天输入条「会话」按钮改开固定侧栏（已开则 `revealCurrent()` 滚动聚焦当前行），悬浮抽屉只留给窄屏与智能体选择器；⑤移除右缘竖条 chat rail、文件头「显示/隐藏聊天」按钮、抽屉「固定到侧栏」按钮及 `useSessionSidebar` 四个冗余 API；⑥布局开关补 `data-action="layout-left|split|chat"` 稳定钩子 |
+| 为什么 | 左栏布局下唤出会话区/列表的入口多达 5 个且行为不一；根因是侧栏寄生在聊天窗格内——显示列表必须先展开聊天窗格，左栏布局下产生「左窗格 + 窄聊天列 + 侧栏」的窄缝怪状态。解耦后入口收敛为三个语义不重叠的路径：布局开关（切布局）、Header「+」（新建即见）、侧栏点选（看某个会话） |
+| 上游演进时 | ①`<SessionSidebar>` 的挂载点（`</SplitView>` 之后、`</main>` 之前）与 `wide-screen.css` 的 `> .split-view`/`> .session-sidebar` flex 规则是一对：上游重排 App.vue 模板需按相同语义搬运挂载点；②`handleSessionSelect` 的 reveal 必须保持在跨项目分支与 already-active 守卫**之前**（守卫测试钉了行序）；③override 分流（`registerOpenSessionTabOverride` 闭包）是宽屏侧栏/窄屏抽屉的唯一分叉点；④HeaderLayoutSwitch 的 `data-action` 钩子与 e2e page object 强耦合；⑤上游若复刻 rail/文件头按钮，对照设计文档裁决而非照搬 |
+
 ## 已退役
 
 （暂无。主题因上游原生实现同等能力而不再需要时，从上表移入本节，注明退役提交与日期。）
