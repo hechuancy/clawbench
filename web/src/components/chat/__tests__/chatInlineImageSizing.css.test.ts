@@ -124,16 +124,19 @@ describe('chat inline image sizing (markdown-common.css + media-block.css)', () 
   })
 
   it('keeps a height cap so a tall image cannot run away', () => {
-    // A cap in any unit (a design-px calc counts); the point is that one exists.
-    // Chat now shares the document budget (60dvh) instead of its own 200dp
+    // A cap in any unit (a design-px calc or the shared --media-window var
+    // counts); the point is that one exists. Chat reads the shared window
+    // budget (60dvh via the .chat-message override) instead of its own 200dp
     // thumbnail cap — see media-block.css.
-    expect(chatImgRule().decls).toMatch(/max-height\s*:\s*(?:\d|calc\()/)
+    expect(chatImgRule().decls).toMatch(/max-height\s*:\s*(?:\d|calc\(|var\()/)
   })
 
-  it('uses the same 60dvh budget as a document image', () => {
-    // The single sizing policy: chat no longer has its own cap, so the rule must
-    // not shrink to a chat-specific design-px value either.
-    expect(chatImgRule().decls).toContain('max-height: 60dvh')
+  it('uses the shared window budget, not a chat-specific value', () => {
+    // The single sizing policy: chat no longer has its own cap — the rule reads
+    // the shared `--media-window` variable (75dvh on documents, 60dvh inside
+    // chat via the `.chat-message` override in media-block.css), so the value
+    // follows the surface instead of being re-stated here.
+    expect(chatImgRule().decls).toContain('max-height: var(--media-window)')
   })
 
   it('cancels the 4px band with a selector that actually outranks the chat rule', () => {

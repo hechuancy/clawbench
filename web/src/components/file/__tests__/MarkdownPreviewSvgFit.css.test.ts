@@ -7,7 +7,7 @@ import { readWebFile } from '@/testUtils/readWebFile'
  *
  * An `.image-block-wrapper` is `width: fit-content` by default, so SVG media
  * used to render at its intrinsic size and leave the reading column mostly
- * empty. Two successive designs were tried and the SECOND one is the contract:
+ * empty. Three successive designs were tried; the THIRD one is the contract:
  *
  *  A. `width: min(100%, 60dvh × aspect-ratio)` — sized the frame by the
  *     artwork. Wrong: a portrait diagram shrank the frame to a narrow strip,
@@ -15,17 +15,34 @@ import { readWebFile } from '@/testUtils/readWebFile'
  *     for zooming.
  *  B. **The frame is the viewport**: the figure is always the full column
  *     width, the media is contain-fitted and centred inside a 60dvh box, and
- *     the zoom grows the media into the empty space around it. This is the
- *     current contract.
+ *     the zoom grows the media into the empty space around it.
+ *  C. **Natural width + scroll window** (current): the frame hugs the artwork
+ *     at rest and becomes the full-column window-height viewport while zoomed.
+ *     The artwork itself is NEVER height-clamped — a diagram taller than the
+ *     window budget renders at natural width and its CELL (`.svg-scroll`)
+ *     becomes a vertical scroll window. Designs A and the width-half of B both
+ *     shrank a portrait flowchart to ~7px text; B additionally pinned the svg
+ *     with `max-height + object-fit: contain`, which kept the drawing tiny even
+ *     when the width clamp was lifted (two reverted attempts: bfc27b288,
+ *     965ac2ef1). The CELL may crop; the SVG may not.
+ *
+ * The window budget is PER SURFACE since the tablet follow-up: documents
+ * (preview, share, export, notes) 75dvh, chat 60dvh — a global 75dvh was tried
+ * and reverted once because phone chat bubbles could not fit it. Every height
+ * below reads `var(--media-window)`; the definitions themselves (and their
+ * pairing with `svgMediaFit.ts`'s `mediaHeightFrac`) are pinned by
+ * `svgMediaFit.test.ts`.
  *
  * The invariants below are the ones that regress silently:
- *  1. The figure must be `width: 100%` — not the ratio formula.
- *  2. The media must be CENTRED (`top/left: 50%` + `translate(-50%,-50%)`), not
- *     merely `max-width`-constrained, or it would sit flush left in a wide
- *     frame.
+ *  1. The frame hugs the artwork at rest (`fit-content`) and is the full
+ *     column while zoomed (`width: 100%`).
+ *  2. The zoomed media is CENTRED (`top/left: 50%` + `translate(-50%,-50%)`),
+ *     not merely `max-width`-constrained.
  *  3. The zoom must be applied as LAYOUT size, never `transform: scale()`,
  *     because a transform rasterises once and stretches the pixels — a diagram
  *     zoomed 4x would be blurry, which is the whole complaint.
+ *  4. The resting svg carries NO `max-height`: clamping it rescales the
+ *     artwork instead of letting the scroll window crop it.
  *
  * These are source-contract checks: jsdom cannot evaluate `min()`/`calc()` with
  * `dvh`, cannot resolve an aspect ratio, and cannot measure a rendered box.
@@ -48,7 +65,7 @@ describe('svg media layout (media-block.css contract)', () => {
   /** The rule that sizes the figure itself. */
   const figureRule = css.match(/\.image-block-wrapper\.svg-fit\s*\{([\s\S]*?)\}/)
 
-  /** The rule that establishes the 60dvh viewport (the content cell). */
+  /** The rule that establishes the window-height viewport (the content cell). */
   const cellRule = css.match(
     /\.image-block-wrapper:has\(> \.lightbox-img-wrap > img\) > \.lightbox-img-wrap,[\s\S]*?\{([\s\S]*?)\}/,
   )
@@ -70,9 +87,12 @@ describe('svg media layout (media-block.css contract)', () => {
     expect(figureRule![1]).not.toContain('--svg-ar')
   })
 
-  it('gives the content cell a fixed 60dvh viewport', () => {
+  it('gives the content cell the window-height viewport', () => {
     expect(cellRule).toBeTruthy()
-    expect(cellRule![1]).toContain('height: 60dvh')
+    // At rest the height follows the artwork, capped by the surface's window
+    // (the fixed height belongs to the ACTIVE state only).
+    expect(cellRule![1]).toContain('height: auto')
+    expect(cellRule![1]).toContain('max-height: var(--media-window)')
     expect(cellRule![1]).toContain('overflow: hidden')
     // The media is absolutely positioned against this box.
     expect(cellRule![1]).toContain('position: relative')
@@ -93,18 +113,55 @@ describe('svg media layout (media-block.css contract)', () => {
     // Active: full column, so there is somewhere to pan to.
     expect(css).toMatch(/\.image-block-wrapper\.is-zooming:has\(> \.mermaid > svg\)\s*\{[\s\S]*?width:\s*100%/)
 
-    // Resting media: in flow, shrink-to-fit, capped.
+    // Resting media: in flow, natural size, never height-clamped — a tall
+    // artwork is cropped by its CELL's scroll window (`.svg-scroll`), not
+    // rescaled (clamping here was the mechanism that kept portrait diagrams at
+    // ~7px text through two reverted attempts).
     expect(mediaRule).toBeTruthy()
-    const rest = mediaRule![1]
-    expect(rest).toContain('max-width: 100%')
-    expect(rest).toContain('max-height: 60dvh')
-    expect(rest.replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('position: absolute')
+    const rest = mediaRule![1].replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(rest).toContain('max-width: none !important')
+    expect(rest).not.toContain('max-height')
+    expect(rest).not.toContain('position: absolute')
 
     // Active media: out of flow, so a zoomed artwork overflows without resizing
     // the frame.
     expect(css).toMatch(
       /\.image-block-wrapper\.is-zooming > \.mermaid > svg\s*\{[\s\S]*?position:\s*absolute/,
     )
+  })
+
+  it('turns a tall diagram\u2019s cell into a scroll window (.svg-scroll)', () => {
+    // The `.svg-scroll` marker is stamped by `svgMediaFit.ts` when the artwork's
+    // natural height exceeds the window budget. The CELL crops; the svg never.
+    const decl = css.replace(/\/\*[\s\S]*?\*\//g, '')
+
+    // Base rule (covers touch, outside the hover media query): the cell gets
+    // the window at the surface's `--media-window` height. It must NOT name the
+    // raster img wrap — photos keep their own max-height cap and the lightbox.
+    const base = decl.match(
+      /\.image-block-wrapper\.svg-scroll > \.mermaid\s*,\s*\.image-block-wrapper\.svg-scroll > \.lightbox-svg-wrap\s*\{([^}]*)\}/,
+    )
+    expect(base, 'the base scroll-window rule must exist').toBeTruthy()
+    expect(base![1]).toContain('max-height: var(--media-window)')
+    expect(base![1]).toContain('overflow-y: auto')
+
+    // Hover rule: must outrank the resting cell's `overflow: hidden`. The
+    // resting selector is 0-3-1, so this one mirrors the `:has()` and adds
+    // `.svg-scroll` (0-4-1). Matched per selector so the order of the
+    // selector list cannot silently break the pin.
+    const hoverMermaid = decl.match(
+      /\.image-block-wrapper\.svg-scroll:has\(> \.mermaid > svg\) > \.mermaid\s*\{([^}]*)\}/,
+    )
+    const hoverInline = decl.match(
+      /\.image-block-wrapper\.svg-scroll:has\(> \.lightbox-svg-wrap > svg\.lightbox-svg\) > \.lightbox-svg-wrap\s*,[\s\S]*?\{([^}]*)\}/,
+    )
+    expect(hoverMermaid, 'the mermaid hover scroll-window rule must exist').toBeTruthy()
+    expect(hoverInline, 'the inline-svg hover scroll-window rule must exist').toBeTruthy()
+    expect(hoverMermaid![1]).toContain('overflow-y: auto')
+    expect(hoverInline![1]).toContain('overflow-y: auto')
+
+    // No raster img may ever land in the scroll window.
+    expect(decl).not.toMatch(/\.svg-scroll[^{]*\.lightbox-img-wrap > img[^{]*\{/)
   })
 
   it('sizes the media from the ratio, never from a percentage of the cell', () => {
@@ -116,7 +173,7 @@ describe('svg media layout (media-block.css contract)', () => {
     // The width must therefore be derived from the artwork's own ratio
     // (`--svg-ar`) or written as a resolved pixel value by `svgMediaFit.ts`.
     const declarations = css.replace(/\/\*[\s\S]*?\*\//g, '')
-    expect(declarations).toContain('60dvh * var(--svg-ar')
+    expect(declarations).toContain('var(--media-window) * var(--svg-ar')
     // mermaid states its natural size inline; only !important can override it.
     expect(declarations).toContain('max-width: none !important')
   })
@@ -152,17 +209,21 @@ describe('svg media layout (media-block.css contract)', () => {
     expect(heldRule, 'the held state must not style the figure itself').toBeNull()
   })
 
-  it('caps a tall diagram at 60dvh at rest and fixes the frame when active', () => {
+  it('caps a tall diagram at the window height at rest and fixes the frame when active', () => {
     // At rest the cell height comes from the in-flow artwork, capped by
     // max-height; a wide-and-flat diagram therefore gets a short frame instead
-    // of being padded into a 60dvh box.
+    // of being padded into a window-height box. (For an artwork TALLER than
+    // the cap the `.svg-scroll` test above is the contract: the cell scrolls
+    // instead of hiding the overflow.)
     expect(cellRule).toBeTruthy()
     const rest = cellRule![1]
     expect(rest).toContain('height: auto')
-    expect(rest).toContain('max-height: 60dvh')
-    expect(rest.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/^\s*height:\s*60dvh/m)
+    expect(rest).toContain('max-height: var(--media-window)')
+    expect(rest.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/^\s*height:\s*var\(--media-window\)/m)
 
-    // Active: a fixed 60dvh viewport so panning has a stable frame.
+    // Active: a fixed window-height viewport so panning has a stable frame
+    // (entering zoom must not shrink a 75dvh document window to 60dvh — same
+    // variable, so the frame follows the surface).
     // The selector must mirror the resting `:has()`: `:has()` contributes its
     // argument's specificity, so a plain `.is-zooming > .mermaid` (0-3-0) loses
     // to the resting `:has(> .mermaid > svg)` (0-3-1).
@@ -170,7 +231,7 @@ describe('svg media layout (media-block.css contract)', () => {
       /\.image-block-wrapper\.is-zooming:has\(> \.mermaid > svg\) > \.mermaid\s*\{([\s\S]*?)\}/,
     )
     expect(active, 'active rule must match the resting :has() specificity').toBeTruthy()
-    expect(active![1]).toContain('height: 60dvh')
+    expect(active![1]).toContain('height: var(--media-window)')
   })
 
   it('does not cap the zoom scale at the fit width', () => {
@@ -186,9 +247,10 @@ describe('svg media layout (media-block.css contract)', () => {
 
   it('sizes a raster <img> from its own intrinsic width, not the svg ratio', () => {
     // An <img> has no stamped `--svg-ar`, so the svg rule's
-    // `calc(60dvh * var(--svg-ar, 1))` would resolve to `60dvh * 1` and put
-    // every photo in a fixed 492px-wide box — while the shrink-to-fit figure
-    // stretched to the column around it. The img needs its own `width: auto`.
+    // `calc(var(--media-window) * var(--svg-ar, 1))` would resolve to
+    // `--media-window * 1` and put every photo in a fixed ~492px-wide box —
+    // while the shrink-to-fit figure stretched to the column around it. The
+    // img needs its own `width: auto`.
     const imgRule = css.match(
       /\.image-block-wrapper:has\(> \.lightbox-img-wrap > img\) > \.lightbox-img-wrap > img\s*\{([\s\S]*?)\}/,
     )
@@ -196,7 +258,7 @@ describe('svg media layout (media-block.css contract)', () => {
     const decl = imgRule![1].replace(/\/\*[\s\S]*?\*\//g, '')
     expect(decl).toContain('width: auto')
     expect(decl).toContain('max-width: 100%')
-    expect(decl).toContain('max-height: 60dvh')
+    expect(decl).toContain('max-height: var(--media-window)')
     expect(decl).not.toContain('--svg-ar')
   })
 
@@ -215,7 +277,7 @@ describe('svg media layout (media-block.css contract)', () => {
   it('neutralises the zoom viewport inside table cells', () => {
     // Table cells opt out of inline zoom in JS (`zoomableMedia`), but the CSS
     // must hold too: a stray `.is-zooming` would otherwise give the cell a
-    // 60dvh frame and out-of-flow media, making the whole row jump.
+    // window-height frame and out-of-flow media, making the whole row jump.
     //
     // Keyed on the CELL (`td`/`th`) — rendered markdown tables carry no marker
     // class, so keying on `.table-row-value` (a `TableRowModal`-only class) left
@@ -232,9 +294,9 @@ describe('svg media layout (media-block.css contract)', () => {
       /td \.image-block-wrapper\.is-zooming > \.mermaid > svg[^{]*\{[^}]*position:\s*static/,
     )
     // And the height budget must be restored, not shrunk to a thumbnail: an
-    // active 60dvh frame would still resize the artwork inside the cell.
+    // active window-height frame would still resize the artwork inside the cell.
     expect(table).toMatch(
-      /td \.image-block-wrapper\.is-zooming > \.mermaid > svg[^{]*\{[^}]*max-height:\s*60dvh/,
+      /td \.image-block-wrapper\.is-zooming > \.mermaid > svg[^{]*\{[^}]*max-height:\s*var\(--media-window\)/,
     )
   })
 

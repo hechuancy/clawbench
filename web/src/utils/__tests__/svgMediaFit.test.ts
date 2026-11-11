@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   MEDIA_HEIGHT_FRAC,
+  MEDIA_HEIGHT_FRAC_DOC,
   SVG_FIT_CLASS,
+  SVG_SCROLL_CLASS,
   SVG_AR_PROP,
   isSvgImageSrc,
   svgMediaAspectRatio,
@@ -330,14 +332,50 @@ describe('resting media width (svgMediaFit)', () => {
     return { wrapper, svg, column }
   }
 
-  afterEach(() => { document.body.innerHTML = '' })
+  const originalInnerHeight = window.innerHeight
+  afterEach(() => {
+    document.body.innerHTML = ''
+    Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
+  })
+  /** Pin the viewport: every zone boundary derives from the window budget
+   *  (75dvh in these non-chat fixtures, 60dvh inside `.chat-message`). */
+  const setViewportHeight = (h: number) => {
+    Object.defineProperty(window, 'innerHeight', { value: h, configurable: true })
+  }
 
-  it('keeps a small diagram at its stated size instead of stretching it', () => {
-    // "没有聚焦的时候容器宽度以元素实际宽度为准" — a 250px diagram must not be
-    // blown up to the 800px column at rest; growing is the active state's job.
+  it('renders a small diagram complete at the upscale cap instead of filling the column', () => {
+    setViewportHeight(900)
+    // A 250px diagram filled into the 800px column would carry ~51px labels —
+    // shouting next to 16px body text. The "too small" control caps the
+    // upscale at 2× natural: 500px, labels 32px (figure-like, readable), and
+    // because it fits whole it renders COMPLETE — no scroll window.
     const { wrapper, svg } = mkSvg(250, 70, 250)
     stampSvgFigure(wrapper)
-    expect(parseFloat(svg.style.width)).toBe(250)
+    expect(parseFloat(svg.style.width)).toBe(500)
+    expect(wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(false)
+  })
+
+  it('fills the column with a moderate landscape diagram, whole and uncapped', () => {
+    setViewportHeight(900)
+    // Natural 500×200 in an 800px column: fits whole at full width (height
+    // 320 ≤ 75dvh=675), labels keep ≥ 90% of natural at the column width —
+    // the COMPLETE zone at its best: "适当长度和宽度 → 直接完整渲染".
+    const { wrapper, svg } = mkSvg(500, 200, 500)
+    stampSvgFigure(wrapper)
+    expect(parseFloat(svg.style.width)).toBe(800)
+    expect(wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(false)
+  })
+
+  it('renders a square diagram complete at the height budget, not scrolled', () => {
+    setViewportHeight(900)
+    // 400×400 natural: filling the 800px column would make it 800 tall — over
+    // the 675px budget — but fitting whole needs only 675 wide, where the
+    // labels keep 168% of natural (≥ 90% → readable). Complete wins: whole,
+    // no scroll window.
+    const { wrapper, svg } = mkSvg(400, 400, 400)
+    stampSvgFigure(wrapper)
+    expect(parseFloat(svg.style.width)).toBe(675)
+    expect(wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(false)
   })
 
   it('shrinks a diagram wider than the column down to the column', () => {
@@ -368,35 +406,31 @@ describe('resting media width (svgMediaFit)', () => {
 })
 
 /**
- * Portrait diagrams at rest.
+ * Tall diagrams at rest.
  *
- * #570 reported a 302x1182 flowchart rendered as an unreadable sliver and the
- * obvious-looking fix is to drop the height budget from
- * `applyMediaWidth`'s `Math.min(intrinsic, avail, heightBudget * ar)`.
+ * #570 reported a 302x1182 flowchart rendered as an unreadable sliver: the
+ * height budget bounded the WIDTH (`min(intrinsic, avail, 60dvh × ar)`), so a
+ * 1:3.9 artwork collapsed to ~138px of ~7px text and reading it meant
+ * click-to-zoom. The contract below FILLS the reading column and keeps only an
+ * extreme-height carve-out:
  *
- * That fix does NOT work, and the reason is geometry rather than code:
- * `media-block.css` caps the media at `max-height: 60dvh` with
- * `object-fit: contain`. Once the height is pinned, a 1:3.9 artwork's width is
- * forced — 60dvh * 0.255. Measured in Chromium against the real stylesheet
- * (viewport 900px, 800px column):
+ *   width = min(avail, 2 × natural, 5 × budget × ar)
+ *   height > budget?                    — `.svg-scroll` stamped; the CELL becomes
+ *                                         a 60dvh scroll window (`media-block.css`)
  *
- *   width from the budget (current): figure 138px, drawing 138px, gutters 0
- *   width from the column  (dropped): figure 302px, drawing 138px, gutters 82px
- *
- * The drawing is IDENTICAL; dropping the budget only adds 82px of empty frame
- * on each side — the "578px empty box" symptom the same issue complained about.
- * So the budget is load-bearing and these assertions pin it, to stop the next
- * reader from "fixing" it a third time.
- *
- * The budget was briefly raised to 75dvh for #570 and reverted: the same cap
- * applies inside a chat bubble on a phone, where 75dvh of diagram plus the
- * header, input bar and dock pushes the message itself off-screen. Reading a
- * tall diagram is what click-to-zoom is for, so 60dvh it is.
+ * Dropping the budget term alone was tried twice (bfc27b288, 965ac2ef1) and
+ * reverted both times — the stylesheet still clamped the svg itself with
+ * `max-height + object-fit: contain`, so the drawing stayed exactly as tiny and
+ * the wider frame only added ~82px of empty gutter per side. The CELL crops the
+ * artwork, never the svg. These assertions pin the JS half; the CSS half (scroll
+ * window exists, the svg carries no max-height at rest) is pinned by
+ * MarkdownPreviewSvgFit.css.test.ts.
  */
-describe('portrait diagram resting width (height budget is intentional)', () => {
+describe('tall diagram width (fill column, extreme-height cap, scroll window)', () => {
   /** 302x1182 is the flowchart from #570 — the case the whole debate is about. */
   const PORTRAIT_W = 302
   const PORTRAIT_H = 1182
+  const AR = PORTRAIT_W / PORTRAIT_H
 
   const mkPortrait = () => {
     const wrapper = document.createElement('div')
@@ -427,83 +461,203 @@ describe('portrait diagram resting width (height budget is intentional)', () => 
     Object.defineProperty(window, 'innerHeight', { value: h, configurable: true })
   }
 
-  it('sizes a tall diagram from the height budget, not the column', () => {
-    // 900px viewport -> 60dvh = 540px -> 540 * (302/1182) = 138px.
+  it('fills toward the column, bounded by the 2× upscale cap', () => {
+    // The complete-fit width (675 × ar ≈ 173px) is far below the 90%
+    // readability floor, so the diagram takes the FILL path. At a 900px
+    // viewport the 2×-natural cap (604px) binds before both the column (800)
+    // and the 5-window cap (862px): 604px, 2× the authored 16px labels, with
+    // the overflow in the cell's scroll window.
     setViewportHeight(900)
     const { wrapper, svg } = mkPortrait()
     stampSvgFigure(wrapper)
 
-    expect(parseFloat(svg.style.width)).toBeCloseTo(138, 0)
-    // The column is 800px; taking it would leave ~82px of empty frame per side
-    // while the artwork stayed exactly the same size.
+    expect(parseFloat(svg.style.width)).toBeCloseTo(2 * PORTRAIT_W, 0)
     expect(parseFloat(svg.style.width)).toBeLessThan(800)
+    expect(wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(true)
   })
 
-  it('scales the resting width with the viewport, because the height cap drives it', () => {
-    // This is the property that makes the budget necessary: the cap is on
-    // HEIGHT, so the width must track it. If someone removes the budget both
-    // viewports would produce the same 302px, which is what the assertions
-    // below distinguish.
+  it('the caps track the viewport height: window cap binds short, upscale cap binds tall', () => {
+    // At 600px the 5-window cap (5 × 450 × ar = 575px) binds before the
+    // 2×-natural cap (604px); at 4000px the window cap clears and the upscale
+    // cap (604px) binds — a portrait diagram never reaches the full column,
+    // by design.
     setViewportHeight(600)
     const a = mkPortrait()
     stampSvgFigure(a.wrapper)
     const short = parseFloat(a.svg.style.width)
     document.body.innerHTML = ''
 
-    setViewportHeight(1080)
+    setViewportHeight(4000)
     const b = mkPortrait()
     stampSvgFigure(b.wrapper)
     const tall = parseFloat(b.svg.style.width)
 
-    expect(short).toBeLessThan(tall)
-    // 600 * 0.6 * ar and 1080 * 0.6 * ar.
-    expect(short).toBeCloseTo(600 * 0.6 * (PORTRAIT_W / PORTRAIT_H), 0)
-    expect(tall).toBeCloseTo(1080 * 0.6 * (PORTRAIT_W / PORTRAIT_H), 0)
+    expect(short).toBeCloseTo(600 * 0.75 * 5 * AR, 0)
+    expect(tall).toBeCloseTo(2 * PORTRAIT_W, 0)
+    // Short viewport: 2250px of content in a 450px window — scrolls. Very tall
+    // viewport: 2363px of content against a 3000px budget — fits WHOLE, no
+    // scroll window needed.
+    expect(a.wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(true)
+    expect(b.wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(false)
+  })
+
+  it('yields to the column for a tall diagram in a narrow column', () => {
+    // jsdom's scrollbar probe measures 0 (no layout), so the allowance is a
+    // no-op here and the width is exactly the column.
+    setViewportHeight(900)
+    const { wrapper, svg } = mkPortrait()
+    Object.defineProperty(wrapper.parentElement!, 'getBoundingClientRect', {
+      value: () => ({ width: 260, height: 0, top: 0, left: 0, right: 260, bottom: 0, x: 0, y: 0, toJSON() {} }),
+      configurable: true,
+    })
+    stampSvgFigure(wrapper)
+
+    expect(parseFloat(svg.style.width)).toBe(260)
+    expect(wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(true)
   })
 
   it('never exceeds the column for a tall diagram on a very tall viewport', () => {
-    // At some point the budget-derived width would outgrow the column; the
-    // column clamp still wins, so a portrait diagram can never overflow.
     setViewportHeight(4000)
     const { wrapper, svg } = mkPortrait()
     stampSvgFigure(wrapper)
     expect(parseFloat(svg.style.width)).toBeLessThanOrEqual(800)
   })
 
+  it('does not stamp the scroll window on a diagram that fits the budget', () => {
+    // A landscape flowchart's natural height is far below 60dvh: no window,
+    // and the width contract is unchanged from before.
+    setViewportHeight(900)
+    const wrapper = document.createElement('div')
+    wrapper.className = 'image-block-wrapper'
+    const cell = document.createElement('div')
+    cell.className = 'mermaid'
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 1600 70')
+    cell.appendChild(svg)
+    wrapper.appendChild(cell)
+    const column = document.createElement('div')
+    column.appendChild(wrapper)
+    document.body.appendChild(column)
+    Object.defineProperty(column, 'getBoundingClientRect', {
+      value: () => ({ width: 800, height: 0, top: 0, left: 0, right: 800, bottom: 0, x: 0, y: 0, toJSON() {} }),
+      configurable: true,
+    })
+    stampSvgFigure(wrapper)
+
+    expect(parseFloat(svg.style.width)).toBe(800)
+    expect(wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(false)
+  })
+
+  it('does not stamp the scroll window on a raster image, even a tall one', () => {
+    // A raster <img> keeps its own max-height cap and the lightbox; the scroll
+    // window is vector-only (`isVectorMedia`). Its width still comes from the
+    // last-resort branch (an img has no viewBox), which is the budget-derived
+    // width — i.e. the img path is untouched by this change.
+    setViewportHeight(900)
+    const wrapper = document.createElement('div')
+    wrapper.className = 'image-block-wrapper'
+    const wrap = document.createElement('span')
+    wrap.className = 'lightbox-img-wrap'
+    const img = document.createElement('img')
+    img.className = 'lightbox-img'
+    img.setAttribute('src', 'chart.svg')
+    withNaturalSize(img, PORTRAIT_W, PORTRAIT_H)
+    wrap.appendChild(img)
+    wrapper.appendChild(wrap)
+    const column = document.createElement('div')
+    column.appendChild(wrapper)
+    document.body.appendChild(column)
+    Object.defineProperty(column, 'getBoundingClientRect', {
+      value: () => ({ width: 800, height: 0, top: 0, left: 0, right: 800, bottom: 0, x: 0, y: 0, toJSON() {} }),
+      configurable: true,
+    })
+    stampSvgFigure(wrapper)
+
+    expect(parseFloat(img.style.width)).toBeCloseTo(900 * 0.75 * (PORTRAIT_W / PORTRAIT_H), 0)
+    expect(wrapper.classList.contains(SVG_SCROLL_CLASS)).toBe(false)
+  })
+
   it('keeps the frame hugging the media (no empty gutters at rest)', () => {
-    // The reason the budget matters: at rest the figure is shrink-to-fit around
-    // the media's resolved width, so the frame and the artwork have the SAME
-    // width and there are no empty bands. jsdom cannot lay this out, so the
-    // contract asserted here is the input to it — the svg carries a definite
-    // pixel width equal to the budget-derived value, and the CSS that makes the
-    // frame hug it is pinned by MarkdownPreviewSvgFit.css.test.ts.
+    // At rest the figure is shrink-to-fit around the media's resolved width, so
+    // the frame and the artwork have the SAME width and there are no empty
+    // bands. jsdom cannot lay this out, so the contract asserted here is the
+    // input to it — the svg carries a definite pixel width equal to the capped
+    // fill width, and the CSS that makes the frame hug it is pinned by
+    // MarkdownPreviewSvgFit.css.test.ts.
     setViewportHeight(900)
     const { wrapper, svg } = mkPortrait()
     stampSvgFigure(wrapper)
-
-    const written = parseFloat(svg.style.width)
-    const budgetWidth = 900 * 0.6 * (PORTRAIT_W / PORTRAIT_H)
-    // Within a pixel of the budget: no extra width for the frame to pad out.
-    expect(Math.abs(written - budgetWidth)).toBeLessThan(1)
+    expect(parseFloat(svg.style.width)).toBeCloseTo(2 * PORTRAIT_W, 0)
   })
 
-  it('uses the same height budget the stylesheet caps the media at', () => {
-    // The width is derived from the budget, but the HEIGHT is enforced by
-    // `media-block.css`. Two independent literals drift: a stylesheet cap
-    // smaller than the JS budget makes every portrait diagram overflow its
-    // frame (the CSS clamps the height, so the width no longer matches), and a
-    // larger one re-introduces the empty band the budget exists to prevent.
-    // Changing the budget (it went 60 → 75 → 60 for #570) is exactly the edit
-    // that must touch both, so this pins the pair.
+  it('uses the same window budgets the stylesheet reserves, per surface', () => {
+    // The scroll DECISION compares the artwork's natural height against the
+    // budget, and the HEIGHT of the window itself is enforced by
+    // `media-block.css` (`.svg-scroll` cell) through the `--media-window`
+    // custom property. Two independent literals drift: a stylesheet window
+    // smaller than the JS budget leaves stamped figures that show no overflow
+    // (dead scroll class), and a larger one lets tall diagrams dominate the
+    // viewport uncropped. The budget is PER SURFACE now (documents 75dvh,
+    // chat 60dvh — a global 75dvh was tried and reverted for phone chat), so
+    // this pins BOTH pairs: the `:root` default ↔ MEDIA_HEIGHT_FRAC_DOC, and
+    // the `.chat-message` override ↔ MEDIA_HEIGHT_FRAC.
     const css = readWebFile('css/media-block.css').replace(/\/\*[\s\S]*?\*\//g, '')
-    const capMatch = css.match(/max-height:\s*(\d+(?:\.\d+)?)dvh/)
-    expect(capMatch, 'the stylesheet must state the media height budget').toBeTruthy()
-    const capFrac = Number(capMatch![1]) / 100
+    const defs = Array.from(css.matchAll(/--media-window:\s*(\d+(?:\.\d+)?)dvh/g))
+    expect(defs.length, 'the stylesheet must define --media-window twice (default + chat)')
+      .toBe(2)
+    const docFrac = Number(defs[0]![1]) / 100
+    const chatFrac = Number(defs[1]![1]) / 100
 
-    expect(MEDIA_HEIGHT_FRAC).toBeCloseTo(capFrac, 5)
-    // 60dvh, not more: the cap also applies to a diagram inside a chat bubble,
-    // where a taller one leaves no room for the conversation around it.
+    expect(MEDIA_HEIGHT_FRAC_DOC).toBeCloseTo(docFrac, 5)
+    expect(MEDIA_HEIGHT_FRAC_DOC).toBe(0.75)
+    expect(MEDIA_HEIGHT_FRAC).toBeCloseTo(chatFrac, 5)
     expect(MEDIA_HEIGHT_FRAC).toBe(0.6)
+    // And the definitions sit in the right scopes: the default on :root, the
+    // chat override on the chat wrapper mediaHeightFrac() looks for.
+    expect(css).toMatch(/:root\s*\{[^}]*--media-window:\s*75dvh/)
+    expect(css).toMatch(/\.chat-message\s*\{[^}]*--media-window:\s*60dvh/)
+  })
+
+  it('gives a chat-bubble figure the shorter 60dvh budget, a document figure 75dvh', () => {
+    // The per-surface split in one picture: the SAME square diagram, stamped
+    // inside `.chat-message` and outside it. Chat keeps the phone-safe
+    // budget (a global 75dvh was tried and reverted — the bubble plus header,
+    // input bar and dock left the message off-screen); documents get the
+    // taller window the tablet follow-up asked for. Detection is structural
+    // (`closest('.chat-message')`), exactly like the stylesheet override.
+    setViewportHeight(900)
+    const mkSquare = (host: HTMLElement) => {
+      const wrapper = document.createElement('div')
+      wrapper.className = 'image-block-wrapper'
+      const cell = document.createElement('div')
+      cell.className = 'mermaid'
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 400 400')
+      svg.style.maxWidth = '400px'
+      cell.appendChild(svg)
+      wrapper.appendChild(cell)
+      const column = document.createElement('div')
+      column.appendChild(wrapper)
+      host.appendChild(column)
+      document.body.appendChild(host)
+      Object.defineProperty(column, 'getBoundingClientRect', {
+        value: () => ({ width: 800, height: 0, top: 0, left: 0, right: 800, bottom: 0, x: 0, y: 0, toJSON() {} }),
+        configurable: true,
+      })
+      return { wrapper, svg }
+    }
+
+    const chatHost = document.createElement('div')
+    chatHost.className = 'chat-message'
+    const chat = mkSquare(chatHost)
+    stampSvgFigure(chat.wrapper)
+    // Chat: complete zone at 0.6 × 900 = 540 (the pre-split global budget).
+    expect(parseFloat(chat.svg.style.width)).toBe(540)
+
+    const doc = mkSquare(document.createElement('div'))
+    stampSvgFigure(doc.wrapper)
+    // Document: the taller window — 0.75 × 900 = 675.
+    expect(parseFloat(doc.svg.style.width)).toBe(675)
   })
 })
 
@@ -525,6 +679,102 @@ describe('portrait diagram resting width (height budget is intentional)', () => 
  * `clientWidth` answers both (content+padding box, unscaled), so the contract
  * asserted here is: subtract the column's padding and the figure's borders.
  */
+
+/**
+ * The zone widths derive from the UI-SCALED natural size, so they follow the
+ * interface zoom ("界面缩放") — at 125% the labels read at the same relative
+ * size against the scaled-up body text, whatever zone a diagram lands in.
+ */
+describe('ui-scale following (zone widths × applied scale)', () => {
+  const mkSvg = (inlineMax: number, vbW: number, vbH: number) => {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'image-block-wrapper'
+    const cell = document.createElement('div')
+    cell.className = 'mermaid'
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`)
+    svg.style.maxWidth = `${inlineMax}px`
+    cell.appendChild(svg)
+    wrapper.appendChild(cell)
+    const column = document.createElement('div')
+    column.appendChild(wrapper)
+    document.body.appendChild(column)
+    Object.defineProperty(column, 'getBoundingClientRect', {
+      value: () => ({ width: 800, height: 0, top: 0, left: 0, right: 800, bottom: 0, x: 0, y: 0, toJSON() {} }),
+      configurable: true,
+    })
+    return { wrapper, svg, column }
+  }
+
+  const originalInnerHeight = window.innerHeight
+  afterEach(() => {
+    document.body.innerHTML = ''
+    document.documentElement.style.removeProperty('--ui-scale')
+    Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
+  })
+
+  it('widens the zones with the interface zoom', () => {
+    // A portrait diagram in the FILL zone at a 900px viewport: the 2×-natural
+    // cap (604) binds at scale 1; at 125% the upscale cap widens to 755 and
+    // now binds itself (the 5-window cap cleared to 862). Either way the
+    // width GROWS with the reader's text size — that is the property that
+    // matters.
+    Object.defineProperty(window, 'innerHeight', { value: 900, configurable: true })
+    document.documentElement.style.setProperty('--ui-scale', '1.25')
+    const a = mkSvg(302, 302, 1182)
+    stampSvgFigure(a.wrapper)
+    const w125 = parseFloat(a.svg.style.width)
+    document.body.innerHTML = ''
+
+    document.documentElement.style.removeProperty('--ui-scale')
+    const b = mkSvg(302, 302, 1182)
+    stampSvgFigure(b.wrapper)
+    const w100 = parseFloat(b.svg.style.width)
+
+    expect(w100).toBeCloseTo(2 * 302, 0)
+    expect(w125).toBeCloseTo(Math.min(2 * 302 * 1.25, 5 * 675 * (302 / 1182)), 0)
+    expect(w125).toBeGreaterThan(w100)
+  })
+
+  it('re-stamps every figure when the scale changes at runtime', async () => {
+    // Moving the interface-zoom slider fires UI_SCALE_EVENT (never `resize`);
+    // the zone widths depend on the scale, so ALL of them must re-stamp.
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      disconnect() {}
+    })
+    const callbacks: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      callbacks.push(cb)
+      return callbacks.length
+    })
+    const settle = () => new Promise((r) => setTimeout(r, 0))
+    const drain = () => { for (const cb of callbacks.splice(0)) cb(0) }
+
+    Object.defineProperty(window, 'innerHeight', { value: 900, configurable: true })
+    const { wrapper, svg } = mkSvg(302, 302, 1182)
+    stampSvgFigure(wrapper)
+    expect(parseFloat(svg.style.width)).toBeCloseTo(2 * 302, 0)
+
+    const stop = installSvgMediaAutoFit()
+    try {
+      await settle()
+      drain()
+
+      document.documentElement.style.setProperty('--ui-scale', '1.25')
+      window.dispatchEvent(new CustomEvent('clawbench-ui-scale-change'))
+      await settle()
+      drain()
+
+      expect(parseFloat(svg.style.width))
+        .toBeCloseTo(Math.min(2 * 302 * 1.25, 5 * 675 * (302 / 1182)), 0)
+    } finally {
+      stop()
+      vi.restoreAllMocks()
+    }
+  })
+})
+
 describe('available column width (content box, unscaled)', () => {
   const mk = (opts: { clientWidth: number; padX?: number; borderX?: number }) => {
     const wrapper = document.createElement('div')

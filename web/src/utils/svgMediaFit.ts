@@ -9,47 +9,166 @@
  * media-block factory. By default a figure is `width: fit-content`, so an SVG
  * renders at its intrinsic size and leaves the reading column mostly empty.
  *
- * This module makes SVG figures GROW to fill the column while never exceeding
- * a height cap (60dvh, the same cap raster images already carry). Because a
- * plain `width:100%; max-height:60dvh` on a replaced element would STRETCH the
- * media (the browser clamps the height without shrinking the width), the
- * figure's width is instead driven by the media's aspect ratio:
+ * This module sizes SVG media into THREE zones, aiming for the biggest
+ * READABLE rendering under a bounded footprint ("在限制条件下最大化渲染体验"):
  *
- *   width = min(100%, 60dvh × aspect-ratio)   →   height ≤ 60dvh, ratio kept
+ *  1. COMPLETE — fits whole (column × window) at ≥90% of natural label size:
+ *     renders whole, no scroll (squares, pies, landscape, short portrait).
+ *  2. FILL + SCROLL — too tall to fit whole readably: fills the reading column
+ *     (`width = min(avail, 2 × natural × uiScale, 5 × window × ratio)`), labels
+ *     scale up with the column (vector art re-rasterises cleanly), and the
+ *     CELL scrolls what does not fit. Hugging the natural width instead was
+ *     what made diagrams "small" — reported twice, #570 and again on a wide
+ *     tablet where the column is ~2.7× the diagram's natural size.
+ *  3. END CONTROLS — a too-small diagram is capped at 2× its (ui-scaled)
+ *     natural size (a 2-node sketch at full-column ~70px labels is absurd),
+ *     and a too-elongated one at 5 scroll windows of content (a 1:10 sliver
+ *     filled to the column would be ~13 screens of trapped scroll).
  *
- * The ratio is derived here (not in CSS, which cannot read it) and handed to
- * the stylesheet as the `--svg-ar` custom property plus the `.svg-fit` marker
- * class. A figure that never gets stamped keeps the previous shrink-only
- * behavior, so unknown / non-SVG media is unaffected.
+ * The window height is PER SURFACE: documents (file preview, share SPA, HTML
+ * export, notes) get `MEDIA_HEIGHT_FRAC_DOC` (75dvh — the reader opened the
+ * document for the figure, and 60dvh was reported too short on a tablet),
+ * while chat keeps `MEDIA_HEIGHT_FRAC` (60dvh — a global 75dvh was tried and
+ * reverted once because a phone chat bubble plus header/input/dock left the
+ * message itself off-screen). `media-block.css` mirrors the same split through
+ * the `--media-window` custom property; the pairing is pinned by tests.
+ *
+ * Whatever the width, the artwork itself is never height-clamped: when it is
+ * taller than the viewport budget the figure is stamped `.svg-scroll`
+ * and `media-block.css` turns the content CELL into a vertical scroll window.
+ * That split — the cell may crop, the svg may not — is what the two earlier
+ * reverted attempts (bfc27b288, 965ac2ef1) were missing: they dropped the old
+ * `60dvh × ratio` width term while the stylesheet still clamped the svg with
+ * `max-height + object-fit: contain`, so the drawing stayed tiny and only
+ * empty gutters were added.
+ *
+ * The ratio is still derived here and handed to the stylesheet as the
+ * `--svg-ar` custom property plus the `.svg-fit` marker class (the pre-stamp
+ * CSS fallback sizes from them). A figure that never gets stamped keeps the
+ * shrink-only behavior, so unknown / non-SVG media is unaffected.
  *
  * Sizing reaches every surface that renders a diagram: the file-preview family
  * (file preview, code-link card, share SPA, HTML export) stamps through its
  * render pipelines, and `mermaid.ts` stamps in the SAME task that injects the
  * SVG, so chat diagrams are sized too (#570: a chat diagram is the content the
- * reader came for, not a thumbnail). Raster `<img>` and bare inline `<svg>` in
- * chat are never stamped and keep the bubble's thumbnail cap.
+ * reader came for, not a thumbnail). Raster `<img>` is never given the fill or
+ * the scroll window — its own `max-height` cap and the lightbox remain its
+ * "see the whole picture" path.
  */
 
 /** Marker class consumed by media-block.css to opt a figure into fill-width. */
 import { setRefitHook } from './inlineZoom'
+import { readAppliedUIScale, UI_SCALE_EVENT } from './uiScale'
 
 /**
- * Fraction of the viewport height a rendered diagram may occupy.
+ * Fraction of the viewport height a rendered diagram's scroll window may
+ * occupy — the CHAT value.
  *
- * MUST equal the `max-height` budget `media-block.css` applies to the media
- * (`60dvh`). The stylesheet caps the HEIGHT, so the width this module writes is
- * `budget × aspect-ratio`; a mismatch silently sizes every portrait diagram
- * from a different number than the box it is painted into — the frame would
- * either overflow the cap or leave a band. `svgMediaFit.test.ts` pins the pair.
+ * MUST equal the `.chat-message { --media-window }` override `media-block.css`
+ * applies to figures inside a chat bubble. This module decides WHETHER a
+ * figure scrolls by comparing the filled artwork's height against the budget
+ * (`mediaHeightFrac(media) × innerHeight`), and it also multiplies the budget
+ * into the extreme-height cap (see `MEDIA_MAX_CONTENT_WINDOWS`); a mismatch
+ * with the stylesheet would stamp figures whose window is a different height
+ * than the number they were sized against. `svgMediaFit.test.ts` pins the pair.
  *
- * 60dvh (not more) is deliberate: the same budget applies inside a chat bubble
- * on a phone, where a taller diagram plus the header, input bar and dock leaves
- * the message itself off-screen. Reading a tall diagram is what the click-to-
- * zoom is for.
+ * 60dvh (not more) is deliberate: a taller window was tried GLOBALLY (75dvh)
+ * and reverted — inside a phone chat bubble the figure plus header, input bar
+ * and dock left the message itself off-screen. Documents split off onto
+ * `MEDIA_HEIGHT_FRAC_DOC` instead of moving chat.
  */
 export const MEDIA_HEIGHT_FRAC = 0.6
 
+/**
+ * Fraction of the viewport height a diagram's scroll window may occupy in the
+ * DOCUMENT surfaces (file preview, code-link card, share SPA, HTML export,
+ * notes) — everywhere a figure is the content being read rather than part of a
+ * conversation.
+ *
+ * The tablet follow-up to the three-zone work: 60dvh of a landscape tablet was
+ * reported "too short" (about 1.5 nodes of a portrait flowchart between
+ * scrolls, with upscaled labels eating into the visible area). 75dvh adds a
+ * quarter more content per screen while still leaving the surrounding document
+ * visible; chat does not follow, for the phone reason recorded on
+ * `MEDIA_HEIGHT_FRAC`.
+ *
+ * MUST equal the default `--media-window` in `media-block.css` (`75dvh`);
+ * pinned together with `MEDIA_HEIGHT_FRAC` by `svgMediaFit.test.ts`.
+ */
+export const MEDIA_HEIGHT_FRAC_DOC = 0.75
+
+/**
+ * The window budget that applies to THIS figure's surface, as a fraction of
+ * the viewport height.
+ *
+ * Chat is detected structurally (`closest('.chat-message')`) rather than by a
+ * marker the renderer would have to remember to pass: the chat transcript is
+ * one of several `v-html` injection points with no component instance in
+ * sight, and the wrapper class is the same stable hook the stylesheet override
+ * uses. Every non-chat surface — file preview, code-link card, share SPA, HTML
+ * export, meeting notes — is a document reader and takes the taller budget.
+ */
+export function mediaHeightFrac(media: Element): number {
+    return media.closest('.chat-message') ? MEDIA_HEIGHT_FRAC : MEDIA_HEIGHT_FRAC_DOC
+}
+
+/**
+ * How many scroll windows of content a diagram may keep when the fill-width
+ * cap kicks in — the "too elongated" control.
+ *
+ * Filling the reading column is the default for diagrams that cannot fit whole
+ * readably, and the figure's footprint in the document is already bounded at
+ * the surface's window height by the scroll window. This cap bounds something
+ * else: the SCROLL DEPTH trapped inside that window. A 1:10 sliver filled to
+ * the column would be ~13 windows of drag/wheel to read one figure. Past this
+ * many windows of content height the width is derived back from the cap
+ * (`cap × ratio`), keeping even extreme diagrams readable without an absurd
+ * scroll.
+ *
+ * 5 windows (3–3.75 viewport heights across the two surface budgets) is the
+ * balance: the common LLM-generated
+ * flowcharts (1:2 through ~1:5) fill the column outright or near it, and only
+ * genuinely extreme shapes are narrowed.
+ */
+export const MEDIA_MAX_CONTENT_WINDOWS = 5
+
+/**
+ * The "too small" control: how far a diagram may be upscaled past its natural
+ * size, in multiples of the natural size × the applied UI scale.
+ *
+ * A 2-node sketch mermaid laid out at 180px wide, filled into an 800px column,
+ * would carry ~70px labels — absurd next to 16px body text. The cap keeps small
+ * diagrams modest: at 2× the labels read at twice the body text, figure-like
+ * but not shouting. It multiplies the UI-SCALED natural size so the ceiling
+ * tracks the reader's interface zoom (labels never exceed 2× what the author's
+ * 16px layout means at their text size).
+ */
+export const MEDIA_MAX_UPSCALE = 2
+
+/**
+ * The "complete render" threshold: a diagram that fits WHOLE (column × window
+ * height) renders complete when the fitting width keeps at least this fraction
+ * of its natural label size.
+ *
+ * This is the zone boundary between "render it whole" and "fill and scroll".
+ * A square or landscape diagram fits whole at full column width with labels
+ * ≥ 90% of natural — rendering it inside a scroll window instead would be
+ * pure loss. A 1:4 portrait flowchart only fits whole at ~25% of its natural
+ * size (~4px labels at the #570 proportions) — unreadable, so it takes the
+ * fill+scroll path. 0.9 ≈ "the text is still essentially the authored size".
+ */
+export const MEDIA_COMPLETE_READABILITY = 0.9
+
 export const SVG_FIT_CLASS = 'svg-fit'
+
+/**
+ * Marker class for a figure whose artwork is taller than the height budget:
+ * `media-block.css` turns the content cell into a scroll window at the
+ * surface's `--media-window` height (75dvh documents, 60dvh chat). The
+ * cell crops the artwork; the artwork itself is never clamped (that is what
+ * produced the gutters of the two reverted attempts).
+ */
+export const SVG_SCROLL_CLASS = 'svg-scroll'
 
 /** Custom property carrying the media aspect ratio (width ÷ height). */
 export const SVG_AR_PROP = '--svg-ar'
@@ -196,6 +315,41 @@ function availableColumnWidth(wrapper: HTMLElement, column: HTMLElement): number
 }
 
 /**
+ * Width of a classic (space-taking) scrollbar, in px; 0 on overlay-scrollbar
+ * platforms.
+ *
+ * A `.svg-scroll` cell shows one when its artwork overflows, and the bar eats
+ * into the cell's content width. The media's width is a FIXED pixel value, so
+ * without an allowance the artwork would poke `bar-width` past the cell and a
+ * horizontal scrollbar would appear under the vertical one. The allowance is
+ * probed once (an off-screen `overflow-y: scroll` div) rather than guessed:
+ * macOS and every touch platform report 0 (overlay bars take no layout space),
+ * desktop Chromium/Firefox on Windows/Linux report 15–17. jsdom reports 0,
+ * which keeps the unit tests deterministic.
+ */
+let _scrollbarWidth: number | null = null
+function scrollbarAllowance(): number {
+    if (_scrollbarWidth === null) {
+        if (typeof document === 'undefined') return 0
+        const probe = document.createElement('div')
+        probe.style.cssText = 'position:absolute;top:-9999px;left:-9999px;overflow-y:scroll;'
+        document.body.appendChild(probe)
+        _scrollbarWidth = Math.max(0, probe.offsetWidth - probe.clientWidth)
+        probe.remove()
+    }
+    return _scrollbarWidth
+}
+
+/**
+ * Whether the figure's media is vector art eligible for the scroll window.
+ * Raster `<img>` keeps its own `max-height + object-fit` cap — its "see it
+ * all / see it big" path is the lightbox, not an in-figure scroll.
+ */
+function isVectorMedia(media: HTMLElement): boolean {
+    return media.tagName.toLowerCase() === 'svg'
+}
+
+/**
  * Write the media's pixel width from its ratio, clamped to the column.
  *
  * The width MUST be a resolved pixel value, not a percentage. The figure is
@@ -215,49 +369,64 @@ function applyMediaWidth(wrapper: HTMLElement, media: HTMLElement, ar: number): 
     const avail = availableColumnWidth(wrapper, column)
     if (!(avail > 0)) return
 
-    // The frame takes the artwork's ACTUAL width at rest, never the column's:
-    // a small diagram sits in a small frame instead of a full-column box of
-    // empty space. Only two things may shrink it:
-    //  - the column width, so a wide diagram does not overflow, and
-    //  - the height budget, so a tall one is not cut off.
-    // Nothing may GROW it — enlarging is what the active (zoomed) state is for.
+    // Three zones, one goal — the biggest READABLE rendering under a bounded
+    // footprint ("在限制条件下最大化图形渲染的体验"):
     //
-    // The height budget is NOT a bug, and removing it does not widen a portrait
-    // diagram. #570 reported a 302x1182 flowchart as an unreadable sliver and
-    // the obvious fix — drop `heightBudget * ar` here — was tried twice
-    // (bfc27b288 removed the same formula from CSS, 965ac2ef1 put it back in
-    // JS). It cannot work: `media-block.css` caps the media at
-    // `max-height: 60dvh` with `object-fit: contain`, so once the HEIGHT is
-    // pinned the width of a 1:3.9 artwork is forced to 60dvh * 0.255. Measured
-    // in Chromium against the real stylesheet (900px viewport, 800px column):
+    //  1. COMPLETE. A diagram that fits whole (column × window height) while
+    //     keeping ≥ MEDIA_COMPLETE_READABILITY of its natural label size
+    //     renders WHOLE: no scroll window, no upscale gymnastics — the figure
+    //     is simply there, like any other block. Squares, pies, landscape
+    //     flowcharts and short portrait charts live here.
+    //  2. FILL + SCROLL. A diagram too tall to fit whole readably (the #570
+    //     portrait flowcharts) fills the column instead: vector art upscales
+    //     cleanly, labels grow with the column, and the CELL's scroll window
+    //     (75dvh documents / 60dvh chat) bounds the figure's footprint.
+    //  3. CONTROLS at both ends. A too-SMALL diagram must not fill the column
+    //     (a 2-node sketch at ~70px labels is absurd): the upscale cap
+    //     (MEDIA_MAX_UPSCALE × natural × uiScale) bounds it. A too-ELONGATED
+    //     diagram must not become ten screens of trapped scroll: past
+    //     MEDIA_MAX_CONTENT_WINDOWS windows of content the width is derived
+    //     back from the cap.
     //
-    //   with the budget (this code):  figure 138px, drawing 138px, gutters 0
-    //   without the budget:           figure 302px, drawing 138px, gutters 82px
-    //
-    // Identical artwork; the only difference is 82px of empty frame on each
-    // side — exactly the "578px empty box" the same issue complained about.
-    // A portrait diagram is narrow at rest BY CONSTRUCTION; reading it is what
-    // click-to-zoom is for. `svgMediaFit.test.ts` ("portrait diagram resting
-    // width") pins this so it is not "fixed" a third time.
-    //
-    // The BUDGET ITSELF is the one lever that widens a portrait diagram without
-    // adding empty frame: a larger cap means a taller (and therefore wider)
-    // resting diagram. It was briefly raised to 75dvh for #570 and reverted —
-    // the cap also governs a diagram inside a phone chat bubble, where that much
-    // height leaves no room for the conversation around it. It stays a single
-    // named constant shared with the stylesheet so the two cannot drift.
-    const intrinsic = intrinsicWidth(media, ar)
-    if (!(intrinsic > 0)) return
-    const heightBudget = window.innerHeight * MEDIA_HEIGHT_FRAC
-    const width = Math.min(intrinsic, avail, heightBudget * ar)
-    if (!(width > 0)) return
-    media.style.width = `${Math.round(width * 100) / 100}px`
+    // In both zones the artwork itself is never height-clamped — the CELL
+    // crops it via `.svg-scroll` (the svg clamp was the mechanism behind the
+    // two reverted gutters attempts, bfc27b288 and 965ac2ef1). Raster <img>
+    // keeps the whole-visible budget×ratio width below: its stylesheet rule
+    // clamps with `max-height + object-fit`, so an overflowing stamp would
+    // only add gutters, and upscaling a photo only blurs it.
+    const vector = isVectorMedia(media)
+    const budget = window.innerHeight * mediaHeightFrac(media)
+    if (!vector) {
+        const width = Math.min(avail, budget * ar)
+        if (!(width > 0)) return
+        media.style.width = `${Math.round(width * 100) / 100}px`
+        wrapper.classList.toggle(SVG_SCROLL_CLASS, false)
+        return
+    }
+    const scale = readAppliedUIScale()
+    const natural = intrinsicWidth(media, ar, budget) * scale
+    const upscaleCap = MEDIA_MAX_UPSCALE * natural
+    const completeW = Math.min(avail, budget * ar, upscaleCap)
+    const width = completeW >= natural * MEDIA_COMPLETE_READABILITY
+        ? completeW
+        : Math.min(avail, upscaleCap, MEDIA_MAX_CONTENT_WINDOWS * budget * ar)
+    // Scroll decision from the PRE-allowance width: the allowance only trims
+    // the bar's layout space, it does not change whether the artwork overflows
+    // meaningfully. A figure that ends up a hair shorter than the window shows
+    // no scrollbar either way (overflow-y: auto with fitting content).
+    const scrolls = width / ar > budget
+    const final = scrolls ? Math.max(0, width - scrollbarAllowance()) : width
+    if (!(final > 0)) return
+    media.style.width = `${Math.round(final * 100) / 100}px`
     // Height follows the width through the ratio, so no separate value is
     // written; `height: auto` in CSS derives it from the viewBox.
+    wrapper.classList.toggle(SVG_SCROLL_CLASS, scrolls)
 }
 
 /**
- * The artwork's own width, before any fitting.
+ * The artwork's own width, before any fitting — the RAW natural size, not
+ * multiplied by the UI scale (the caller scales it where the zone policy
+ * needs it).
  *
  * `viewBox` is the authored coordinate space, but an svg may also carry
  * `width`/`height` attributes or an inline `style="max-width: Npx"` (mermaid
@@ -265,8 +434,7 @@ function applyMediaWidth(wrapper: HTMLElement, media: HTMLElement, ar: number): 
  * best signal for "how big did the author mean this to be", so it wins when
  * present; otherwise the viewBox width is used.
  */
-
-function intrinsicWidth(media: HTMLElement, ar: number): number {
+function intrinsicWidth(media: HTMLElement, ar: number, budget: number): number {
     // `parsePx` (not `parseFloat`) on purpose: mermaid writes `width="100%"` on
     // the svg, and `parseFloat('100%')` is 100 — a percentage read as a pixel
     // count silently shrank diagrams to 100px. Only a px value counts.
@@ -277,7 +445,7 @@ function intrinsicWidth(media: HTMLElement, ar: number): number {
     const vb = (media as unknown as SVGSVGElement).viewBox?.baseVal
     if (vb && vb.width > 0) return vb.width
     // Last resort: derive from the height budget so a ratio is still honoured.
-    return window.innerHeight * MEDIA_HEIGHT_FRAC * ar
+    return budget * ar
 }
 
 /**
@@ -341,8 +509,8 @@ export async function stampSvgFiguresAsync(root: ParentNode | null): Promise<voi
  * Two signals, because they answer different questions:
  *  - `ResizeObserver` on each figure's parent: the COLUMN changed. This is the
  *    one that catches side-panel toggles, which do not resize the window.
- *  - `resize` on the window: the VIEWPORT HEIGHT changed, which moves the 60dvh
- *    budget and therefore the width of a height-limited diagram. The column's
+ *  - `resize` on the window: the VIEWPORT HEIGHT changed, which moves the
+ *    window budget and therefore the width of a height-limited diagram. The column's
  *    own width may not change at all in that case, so the observer alone would
  *    miss it.
  *
@@ -359,7 +527,7 @@ export function installSvgMediaAutoFit(): () => void {
     let frame = 0
     // What to re-measure on the next pass.
     //
-    // `all` is the only correct answer for a viewport resize: the 60dvh height
+    // `all` is the only correct answer for a viewport resize: the window height
     // budget changed, so every height-limited diagram needs a new width.
     //
     // A MutationObserver hit, by contrast, concerns only the figures it added:
@@ -462,13 +630,24 @@ export function installSvgMediaAutoFit(): () => void {
 
     const onViewportResize = () => schedule({ all: true })
 
+    // A UI-scale change resizes every rem-sized element but never fires
+    // `resize`, and the zone widths are derived from the UI-SCALED natural
+    // size — so every figure needs a re-stamp when the reader moves the
+    // interface-zoom slider. The event is the documented signal for exactly
+    // this ("缩放变化不触发 resize，靠 UI_SCALE_EVENT 广播"); a root-font change
+    // also fires the ResizeObservers, but those only re-fit the columns they
+    // name, while the scale changed the target size of ALL of them.
+    const onUIScaleChange = () => schedule({ all: true })
+
     observeAll()
     window.addEventListener('resize', onViewportResize)
+    window.addEventListener(UI_SCALE_EVENT, onUIScaleChange as EventListener)
 
     return () => {
         observer.disconnect()
         mutation.disconnect()
         window.removeEventListener('resize', onViewportResize)
+        window.removeEventListener(UI_SCALE_EVENT, onUIScaleChange as EventListener)
         if (frame) cancelAnimationFrame(frame)
     }
 }

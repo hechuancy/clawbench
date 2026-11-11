@@ -23,6 +23,30 @@
    completion popover, table row modal, task overview, share SPA, HTML export.
    ========================================================================== */
 
+/* ─── The media window height, per surface ────────────────────────────────
+   The viewport-height fraction a diagram's scroll window / zoom frame may
+   occupy. EVERY height below reads this variable, and `svgMediaFit.ts` sizes
+   against the same number (`mediaHeightFrac()`), so the two must move together
+   — the pairing is pinned by `svgMediaFit.test.ts`.
+
+   Documents (file preview, code-link card, share SPA, HTML export, notes)
+   default to 75dvh: the reader opened the document FOR the figure, and the
+   tablet follow-up to the three-zone work reported 60dvh as "too short" (~1.5
+   nodes of a portrait flowchart between scrolls, with upscaled labels eating
+   into the visible area).
+
+   Chat overrides to 60dvh: a GLOBAL 75dvh was already tried once and reverted
+   — inside a phone chat bubble the taller window plus header, input bar and
+   dock left the message itself off-screen. So the taller budget belongs to the
+   reading surfaces, not to chat. */
+:root {
+    --media-window: 75dvh;
+}
+
+.chat-message {
+    --media-window: 60dvh;
+}
+
 /* ─── Figure shell ────────────────────────────────────────────────────────
    Thin 1px frame + radius; overflow:hidden rounds the media corners. The
    toolbar is positioned INSIDE the wrapper, so it is never clipped. */
@@ -267,18 +291,19 @@
     .image-block-wrapper:has(> .lightbox-svg-wrap > svg.lightbox-svg) > .lightbox-svg-wrap,
     .image-block-wrapper:has(> .mermaid > svg) > .mermaid {
         /* RESTING: the frame is as tall as the artwork needs at full width,
-           capped at 60dvh.
+           capped at the surface's window height (--media-window: 75dvh
+           documents, 60dvh chat).
 
-           A fixed `height: 60dvh` was wrong for a wide-and-flat diagram (a
-           1076×300 flowchart): the frame stayed 60dvh tall while the artwork
-           occupied a third of it, leaving a big empty band above and below.
-           `height: auto` + `aspect-ratio` (set from the artwork's own ratio by
-           `svgMediaFit.ts` / `inlineZoom.ts`) makes the frame hug the artwork.
-           The `max-height: 60dvh` only engages for a TALL diagram, which is
+           A fixed height at the budget was wrong for a wide-and-flat diagram
+           (a 1076×300 flowchart): the frame stayed budget-tall while the
+           artwork occupied a third of it, leaving a big empty band above and
+           below. `height: auto` + `aspect-ratio` (set from the artwork's own
+           ratio by `svgMediaFit.ts` / `inlineZoom.ts`) makes the frame hug the
+           artwork. The `max-height` only engages for a TALL diagram, which is
            exactly the case where the cap is wanted.
 
-           ACTIVE (`.is-zooming`): the frame becomes the fixed 60dvh viewport so
-           the zoomed artwork has a stable window to pan inside.
+           ACTIVE (`.is-zooming`): the frame becomes the fixed window-height
+           viewport so the zoomed artwork has a stable window to pan inside.
 
            `position: relative` + an absolutely positioned media (below) rather
            than flex centring: a flex item larger than the container overflows
@@ -294,10 +319,10 @@
            replaced-element width (measured: a 1156px diagram rendered at 300px).
 
            `width: 100%` here is safe — it resolves against the figure, which is
-           sized by the svg's definite `calc(60dvh * var(--svg-ar))` width. */
+           sized by the svg's definite `calc(var(--media-window) * var(--svg-ar))` width. */
         width: 100%;
         height: auto;
-        max-height: 60dvh;
+        max-height: var(--media-window);
         overflow: hidden;
         /* No `zoom-in` cursor at rest. A magnifier over an untouched figure
            advertises an affordance the user did not ask for, and on an image
@@ -307,7 +332,20 @@
         cursor: default;
     }
 
-    /* Active: a fixed 60dvh viewport, so panning has a stable frame and a tall
+    /* Scroll window (`.svg-scroll`, stamped by `svgMediaFit.ts`): the cell
+       becomes the vertical scroll viewport for an artwork taller than the
+       surface's window budget. The resting rule above says `overflow: hidden` for every
+       cell; this must OUTRANK it, not just follow it — the resting selector is
+       0-3-1 and this one (`.svg-scroll` + the same `:has()` mirror) is 0-4-1.
+       `overflow-x` stays `hidden` from the resting rule: the media's stamped
+       width already reserves room for the scrollbar (`scrollbarAllowance()` in
+       `svgMediaFit.ts`), so there is nothing horizontal to scroll. */
+    .image-block-wrapper.svg-scroll:has(> .lightbox-svg-wrap > svg.lightbox-svg) > .lightbox-svg-wrap,
+    .image-block-wrapper.svg-scroll:has(> .mermaid > svg) > .mermaid {
+        overflow-y: auto;
+    }
+
+    /* Active: a fixed window-height viewport, so panning has a stable frame and a tall
        diagram does not push the rest of the document around while zoomed.
        `aspect-ratio: auto` cancels the resting ratio — a non-auto ratio
        outranks `height`, which would keep a flat diagram's frame short in the
@@ -327,23 +365,23 @@
            and restores it on exit. This `auto` is the fallback for the frame
            while that property is absent. */
         aspect-ratio: auto;
-        height: 60dvh;
-        min-height: 60dvh;
-        max-height: 60dvh;
+        height: var(--media-window);
+        min-height: var(--media-window);
+        max-height: var(--media-window);
     }
 
     /* Raster <img>: its own intrinsic size IS the width. `width: auto` lets the
        replaced element use it directly, so the shrink-to-fit figure hugs the
-       picture. Only the column and the 60dvh budget may shrink it — nothing may
+       picture. Only the column and the window budget may shrink it — nothing may
        grow it (growing is the active state's job). The `--svg-ar` rule below
        must NOT apply here: an <img> has no stamped ratio, so it would resolve
-       to `60dvh * 1` and force every photo to a fixed 492px-wide box. */
+       to `--media-window * 1` and force every photo to a fixed 492px-wide box. */
     .image-block-wrapper:has(> .lightbox-img-wrap > img) > .lightbox-img-wrap > img {
         display: block;
         width: auto;
         height: auto;
         max-width: 100%;
-        max-height: 60dvh;
+        max-height: var(--media-window);
         object-fit: contain;
         transform-origin: center center;
         transition: width var(--duration-fast) ease-out, height var(--duration-fast) ease-out;
@@ -363,17 +401,16 @@
            depends on the svg — the browser breaks that cycle with the default
            300px replaced-element width, so every diagram collapsed to 300px
            (measured 1156px artwork → 300px). `--svg-ar` (stamped by
-           `svgMediaFit.ts`) gives the svg a width derived from its OWN ratio
-           and the 60dvh height budget, which is definite and cycle-free; the
-           figure's `max-width: 100%` then clamps it to the column.
+           `svgMediaFit.ts`) gives the svg a width from its OWN ratio, which is
+           definite and cycle-free; the figure's `max-width: 100%` then clamps
+           it to the column.
 
            ACTIVE (`.is-zooming`, rule below): out of flow at 100%/100%, because
            a zoomed artwork is larger than the frame and must overflow it
            without changing the frame's size. */
         display: block;
         /* The svg sizes ITSELF from its own ratio; `svgMediaFit.ts` writes the
-           resolved pixel width inline, already clamped to both the column width
-           and the 60dvh height budget.
+           resolved pixel width inline (natural width, clamped to the column).
 
            No `max-width: 100%` here on purpose. It would be relative to the
            cell, and the cell is sized by this element — the two would depend on
@@ -382,18 +419,25 @@
            The script's inline width is definite, so the frame can be
            shrink-to-fit around it without any cycle.
 
-           `--svg-ar` is the pre-script fallback: it produces the same width
-           from the ratio alone, also cycle-free.
+           `--svg-ar` is the pre-script fallback: it produces a width from the
+           ratio alone, also cycle-free.
 
            `max-width: none !important` overrides the `max-width: Npx` mermaid
            writes INLINE on the svg (its natural size). An inline declaration
            outranks any stylesheet rule, so `!important` is the only way to let
            the diagram grow to the frame — and it must not be a percentage, or
-           the svg↔cell cycle returns. */
-        width: calc(60dvh * var(--svg-ar, 1));
+           the svg↔cell cycle returns.
+
+           NO `max-height` here on purpose. The artwork is never height-clamped:
+           a diagram taller than the window budget is cropped by its CELL
+           (`.svg-scroll` scroll window below), never scaled down — clamping
+           this element with `object-fit: contain` was the mechanism that kept
+           portrait flowcharts at ~7px text through two reverted attempts. A
+           non-scrolling figure never needs it either: its stamped width keeps
+           its height under the budget by construction. */
+        width: calc(var(--media-window) * var(--svg-ar, 1));
         height: auto;
         max-width: none !important;
-        max-height: 60dvh;
         object-fit: contain;
         transform-origin: center center;
         /* A short ease on size reads as a deliberate transition rather than a
@@ -476,6 +520,30 @@
     display: block;
 }
 
+/* ─── Scroll window: a diagram taller than the window budget ──────────────
+   Stamped by `svgMediaFit.ts`, which compares the artwork's natural height
+   against the same `--media-window` budget this rule reserves (75dvh
+   documents, 60dvh chat — see the variable block at the top of this file).
+
+   The CELL crops the artwork, the artwork itself is never clamped. That split
+   is the whole design: two earlier attempts to let portrait diagrams render at
+   natural width kept the old `max-height + object-fit: contain` clamp on the
+   svg, which scaled the drawing right back down and only left empty gutters
+   (both reverted). Here the svg renders at its natural size and the cell
+   scrolls the overflow — labels stay at mermaid's natural text size, readable
+   without click-to-zoom, while the frame still never exceeds the surface's
+   window height (a phone chat bubble keeps its conversation density).
+
+   Declared OUTSIDE the hover media query on purpose: touch devices get the
+   same window (drag inside scrolls the diagram; scroll chaining carries the
+   gesture on to the document at the edge). Raster `<img>` is deliberately not
+   covered — it keeps its own max-height cap and the lightbox. */
+.image-block-wrapper.svg-scroll > .mermaid,
+.image-block-wrapper.svg-scroll > .lightbox-svg-wrap {
+    max-height: var(--media-window);
+    overflow-y: auto;
+}
+
 /* .mermaid containers need a positioning context for absolute overlays. */
 .mermaid {
     position: relative;
@@ -491,11 +559,14 @@
    on whether you opened it in a message or in a .md file, and the carve-out had
    to be re-derived every time a media type was added.
 
-   The policy is now single: every surface — chat, file preview, share SPA, HTML
-   export — gets the resting sizing and click-to-zoom defined by the inline-zoom
-   block above (`fit-content` frame, 60dvh height budget, media sized by its own
-   aspect ratio). Media that is small stays small; media taller than the budget
-   is clamped; clicking gives the full-column viewport.
+   The policy is now single in WIDTH: every surface — chat, file preview, share
+   SPA, HTML export — gets the resting sizing and click-to-zoom defined by the
+   inline-zoom block above (`fit-content` frame, media sized by its own aspect
+   ratio, the same three-zone widths from `svgMediaFit.ts`). Media that is
+   small stays small; media taller than the budget is clamped; clicking gives
+   the full-column viewport. The ONE deliberate per-surface difference is the
+   window HEIGHT (`--media-window`, top of this file): documents 75dvh, chat
+   60dvh — chat stays phone-safe while a document gives its figures more room.
 
    The `max-width` caps were `!important` (to beat the generic rule's
    `max-width: none !important`), so they cannot be "left in place but
@@ -840,7 +911,7 @@
     line-height: normal;
 }
 
-/* Neutralise the zoom viewport inside table cells: no 60dvh frame, no
+/* Neutralise the zoom viewport inside table cells: no window-height frame, no
    out-of-flow media, no zoom ring. Keyed on the CELL (`td`/`th`) rather than a
    marker class — rendered markdown tables carry no class of their own, and
    `.table-row-value` only exists inside `TableRowModal.vue`.
@@ -875,9 +946,9 @@ th .image-block-wrapper.is-zoom-active:has(> .mermaid > svg) {
 }
 
 /* Restore the RESTING cell/height budget. The active rules shrink these to a
-   fixed `60dvh` frame; inside a table cell that both changes the artwork's size
-   and makes the row jump, so every active value is mapped back to the resting
-   one (`height: auto` + the same `60dvh` cap). */
+   fixed window-height frame; inside a table cell that both changes the
+   artwork's size and makes the row jump, so every active value is mapped back
+   to the resting one (`height: auto` + the same `--media-window` cap). */
 td .image-block-wrapper.is-zooming:has(> .lightbox-img-wrap > img) > .lightbox-img-wrap,
 td .image-block-wrapper.is-zooming:has(> .lightbox-svg-wrap > svg.lightbox-svg) > .lightbox-svg-wrap,
 td .image-block-wrapper.is-zooming:has(> .mermaid > svg) > .mermaid,
@@ -886,7 +957,7 @@ th .image-block-wrapper.is-zooming:has(> .lightbox-svg-wrap > svg.lightbox-svg) 
 th .image-block-wrapper.is-zooming:has(> .mermaid > svg) > .mermaid {
     height: auto;
     min-height: 0;
-    max-height: 60dvh;
+    max-height: var(--media-window);
 }
 
 td .image-block-wrapper.is-zooming > .lightbox-img-wrap > img,
@@ -898,5 +969,5 @@ th .image-block-wrapper.is-zooming > .mermaid > svg {
     position: static;
     transform: none;
     max-width: 100%;
-    max-height: 60dvh;
+    max-height: var(--media-window);
 }

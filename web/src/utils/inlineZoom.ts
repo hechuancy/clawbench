@@ -3,7 +3,8 @@
  *
  * The problem
  * -----------
- * A rendered diagram has to fit a 60dvh budget, so a portrait flowchart is
+ * A rendered diagram has to fit the surface's window budget (`--media-window`:
+ * 75dvh documents, 60dvh chat), so a portrait flowchart is
  * scaled down until its labels are unreadable — the reader either squints or
  * opens the full-screen lightbox. This module turns the figure itself into a
  * small viewport: click it (pointer devices only) and the diagram can be zoomed
@@ -166,7 +167,7 @@ const CONTENT_MEDIA_SELECTOR =
  * the placeholder card in its place. The structural selector above still
  * matches that hidden element, so without this check the placeholder itself
  * becomes a zoom target: clicking "this media could not be loaded" would grow
- * the figure into a 60dvh viewport around a card that has nothing to zoom.
+ * the figure into a window-height viewport around a card that has nothing to zoom.
  *
  * Keyed on the hidden state rather than the figure's `.image-block-missing`
  * marker because it is the stylesheet's own contract for "this element is not
@@ -301,7 +302,7 @@ function deactivate(): void {
     // resize, side panel toggled). Leaving it would put the diagram back at a
     // stale size — measured 662px wide in a 662px column that had just been
     // 1062px, so the artwork ended up 32px tall. `refit` recomputes from the
-    // CURRENT column and 60dvh budget; it is a no-op when the module is not
+    // CURRENT column and window budget; it is a no-op when the module is not
     // loaded (e.g. the standalone exporter).
     media.style.width = restingWidth ?? ''
     // Drop the markers BEFORE refitting. `refitFigure` bails out while
@@ -541,7 +542,7 @@ export function setRefitHook(fn: (figure: HTMLElement) => void): void {
 /**
  * Re-apply the active zoom after the viewport changed.
  *
- * The frame is a `60dvh` box, so a resize moves the base size that `apply`
+ * The frame is a `--media-window` box, so a resize moves the base size that `apply`
  * derives from it. Panning offsets are left alone: they are in the same pixel
  * space and clamping in `apply` keeps them inside the new frame.
  */
@@ -769,7 +770,8 @@ function onFocusIn(e: FocusEvent): void {
     if (target.closest('.image-block-header')) return
     // A PRESS moves focus to the figure (it carries `tabindex`), so pressing to
     // START A DRAG focuses it before the browser knows a drag began. Activating
-    // here turned every drag-out into a zoom: the figure jumped to its 60dvh
+    // here turned every drag-out into a zoom: the figure jumped to its
+    // window-height
     // viewport under the pointer, which read as "拖不出去". Pointer-driven focus
     // is therefore deferred to the click; only keyboard focus activates now.
     // `onClickEnter` still covers the pointer path, so nothing is lost.
@@ -880,7 +882,7 @@ export function installInlineZoom(): () => void {
     // next keyboard focus would be ignored. Clear it on the drag lifecycle too.
     document.addEventListener('dragend', onPointerUp, true)
     document.addEventListener('drop', onPointerUp, true)
-    // A resized window changes the 60dvh frame, so the zoomed media's box must
+    // A resized window changes the window-height frame, so the zoomed media's box must
     // be recomputed from the new frame — otherwise a zoomed diagram keeps its
     // old pixel size and no longer fills (or overflows) the frame as intended.
     window.addEventListener('resize', onViewportResize)
