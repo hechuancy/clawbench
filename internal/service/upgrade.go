@@ -315,6 +315,14 @@ func CheckForUpgradeInfo() (*UpgradeInfo, error) {
 // if the default cannot be reached.
 func fetchUpgradeInfo() (*UpgradeInfo, error) {
 	currentVer := version.Get()
+	// Local-branch builds carry a pre-release/dev suffix; IsDevBuild covers
+	// them. Short-circuit before any registry query so the UI reports "already
+	// latest" and never offers to replace this build with the official npm
+	// package. This fork is deployed from source; self-upgrade would silently
+	// discard every local change.
+	if version.IsDevBuild(currentVer) {
+		return &UpgradeInfo{CurrentVersion: currentVer, LatestVersion: currentVer}, nil
+	}
 	pkg, err := getPlatformPkg()
 	if err != nil {
 		return nil, err

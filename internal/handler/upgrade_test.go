@@ -269,10 +269,13 @@ func TestServeUpgradeCheck_MethodNotAllowed(t *testing.T) {
 
 func TestServeUpgradeStart_Success(t *testing.T) {
 	defer func() {
+		upgradeIsDevBuild = version.IsDevBuild
 		upgradeIsInProgress = service.IsUpgradeInProgress
 		upgradePerformUpgrade = service.PerformUpgrade
 	}()
 
+	// Simulate an official release; the local-build guard must not fire here.
+	upgradeIsDevBuild = func(string) bool { return false }
 	upgradeIsInProgress = func() bool { return false }
 	upgradeCalled := false
 	upgradePerformUpgrade = func(string) { upgradeCalled = true }
@@ -290,8 +293,12 @@ func TestServeUpgradeStart_Success(t *testing.T) {
 }
 
 func TestServeUpgradeStart_AlreadyInProgress(t *testing.T) {
-	defer func() { upgradeIsInProgress = service.IsUpgradeInProgress }()
+	defer func() {
+		upgradeIsDevBuild = version.IsDevBuild
+		upgradeIsInProgress = service.IsUpgradeInProgress
+	}()
 
+	upgradeIsDevBuild = func(string) bool { return false }
 	upgradeIsInProgress = func() bool { return true }
 
 	req := newRequest(t, http.MethodPost, "/api/upgrade/start", nil)
@@ -305,8 +312,12 @@ func TestServeUpgradeStart_AlreadyInProgress(t *testing.T) {
 // service compares against the registry to decide whether the install may
 // proceed unverified.
 func TestServeUpgradeStart_PassesAcknowledgmentThrough(t *testing.T) {
-	defer func() { upgradePerformUpgrade = service.PerformUpgrade }()
+	defer func() {
+		upgradeIsDevBuild = version.IsDevBuild
+		upgradePerformUpgrade = service.PerformUpgrade
+	}()
 
+	upgradeIsDevBuild = func(string) bool { return false }
 	const issues = "signature_missing,no_integrity_hash"
 	var got string
 	upgradePerformUpgrade = func(ack string) { got = ack }
@@ -323,8 +334,12 @@ func TestServeUpgradeStart_PassesAcknowledgmentThrough(t *testing.T) {
 // An absent body is the normal case for a fully verified release, not a
 // malformed request.
 func TestServeUpgradeStart_EmptyBodyIsAccepted(t *testing.T) {
-	defer func() { upgradePerformUpgrade = service.PerformUpgrade }()
+	defer func() {
+		upgradeIsDevBuild = version.IsDevBuild
+		upgradePerformUpgrade = service.PerformUpgrade
+	}()
 
+	upgradeIsDevBuild = func(string) bool { return false }
 	called := false
 	var got string
 	upgradePerformUpgrade = func(ack string) { called = true; got = ack }
@@ -339,8 +354,12 @@ func TestServeUpgradeStart_EmptyBodyIsAccepted(t *testing.T) {
 }
 
 func TestServeUpgradeStart_MalformedBodyRejected(t *testing.T) {
-	defer func() { upgradePerformUpgrade = service.PerformUpgrade }()
+	defer func() {
+		upgradeIsDevBuild = version.IsDevBuild
+		upgradePerformUpgrade = service.PerformUpgrade
+	}()
 
+	upgradeIsDevBuild = func(string) bool { return false }
 	called := false
 	upgradePerformUpgrade = func(string) { called = true }
 

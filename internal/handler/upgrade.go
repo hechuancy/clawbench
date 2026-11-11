@@ -87,6 +87,14 @@ func ServeUpgradeStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Belt-and-braces for local-branch builds: even if a stale UI shows the
+	// upgrade button, refuse to replace this build with the official npm
+	// package. fetchUpgradeInfo already hides the offer; this guards the API.
+	if upgradeIsDevBuild(version.Get()) {
+		writeLocalizedErrorf(w, r, http.StatusForbidden, "UpgradeDisabledLocalBuild")
+		return
+	}
+
 	if upgradeIsInProgress() {
 		writeLocalizedErrorf(w, r, http.StatusConflict, "UpgradeInProgress")
 		return
