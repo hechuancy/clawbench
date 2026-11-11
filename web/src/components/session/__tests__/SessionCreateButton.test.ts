@@ -11,6 +11,7 @@ import {
 } from '@/composables/useSessionIdentity'
 import {
   useWideScreenLayout,
+  setChatCollapsed,
   resetWideScreenState,
   _setWideScreenForTest,
 } from '@/composables/useWideScreenLayout'
@@ -25,6 +26,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
 // would actually see — not a mocked facade.
 const createSession = vi.fn(async () => {})
 const openAgentSelector = vi.fn(() => {})
+const { chatCollapsed } = useWideScreenLayout()
 
 beforeEach(() => {
   resetWideScreenState()
@@ -86,24 +88,31 @@ describe('SessionCreateButton', () => {
     expect(wrapper.find('[data-action="create-session"]').exists()).toBe(false)
   })
 
-  it('tap creates a session with the DEFAULT agent (no agentId) and routes to chat', async () => {
+  it('tap creates a session with the DEFAULT agent (no agentId) and reveals the chat pane', async () => {
+    // 左栏布局（聊天窗格隐藏）下创建：宽屏 switchTab('chat') 早退，创建的
+    // 会话会落在背后——新契约是 reveal（展开聊天窗格、保持分栏），而不是
+    // 切 tab。组件本身 v-if 宽屏，窄屏分支不可经按钮触达，不设窄屏用例。
+    setChatCollapsed(true)
     const wrapper = mountButton()
     await wrapper.find('[data-action="create-session"]').trigger('click')
     await nextTick()
 
     expect(createSession).toHaveBeenCalledTimes(1)
     expect(createSession).toHaveBeenCalledWith(undefined)
-    expect(switchTabSpy).toHaveBeenCalledWith('chat')
+    expect(chatCollapsed.value).toBe(false, 'creating must reveal the chat pane')
+    expect(switchTabSpy).not.toHaveBeenCalled()
     expect(openAgentSelector).not.toHaveBeenCalled()
   })
 
-  it('contextmenu (desktop right-click) opens the agent selector and routes to chat', async () => {
+  it('contextmenu (desktop right-click) opens the agent selector and reveals the chat pane', async () => {
+    setChatCollapsed(true)
     const wrapper = mountButton()
     await wrapper.find('[data-action="create-session"]').trigger('contextmenu.prevent')
     await nextTick()
 
     expect(openAgentSelector).toHaveBeenCalledTimes(1)
-    expect(switchTabSpy).toHaveBeenCalledWith('chat')
+    expect(chatCollapsed.value).toBe(false, 'routing to chat must reveal the pane')
+    expect(switchTabSpy).not.toHaveBeenCalled()
     expect(createSession).not.toHaveBeenCalled()
   })
 
@@ -112,6 +121,7 @@ describe('SessionCreateButton', () => {
     // directive itself — the browser-synthesized contextmenu ~500ms into the
     // hold is not the touch mechanism. Dispatches ONLY touchstart + time, so
     // it fails if the button ever loses the directive binding.
+    setChatCollapsed(true)
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
       const wrapper = mountButton()
@@ -121,7 +131,8 @@ describe('SessionCreateButton', () => {
       await nextTick()
 
       expect(openAgentSelector).toHaveBeenCalledTimes(1)
-      expect(switchTabSpy).toHaveBeenCalledWith('chat')
+      expect(chatCollapsed.value).toBe(false, 'routing to chat must reveal the pane')
+      expect(switchTabSpy).not.toHaveBeenCalled()
       expect(createSession).not.toHaveBeenCalled()
     } finally {
       vi.clearAllTimers()

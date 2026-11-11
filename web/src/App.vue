@@ -2645,6 +2645,14 @@ watch(sessionSidebarRef, (ref) => {
 // registerSessionDrawerRef above, which is independent.
 
 function handleSessionSelect(sessionId: string, _backend?: string, projectPath?: string) {
+  // 解耦后侧栏可在聊天窗格隐藏时使用：点选行 = 「给我看这段对话」，先
+  // reveal（展开聊天窗格、保持分栏，不收左栏）再做任何守卫分支——包括
+  // 跨项目切换（hotSwitchProject 异步，reveal 不能等它）与 already-active
+  // 守卫（其职责是防消息列表重载，不是防显示：已激活的会话也要展开）。
+  if (isWideScreen.value && chatCollapsed.value) {
+    setChatCollapsed(false)
+    setActivePane(PANE_RIGHT)
+  }
   // Cross-project selection: the session belongs to another project, so switch
   // projects first (hotSwitchProject's Phase 7 opens the session once the new
   // project's identity is ready). Must run BEFORE the already-active guard —

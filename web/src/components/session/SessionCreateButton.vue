@@ -19,7 +19,7 @@ import { inject } from 'vue'
 import { Plus } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useSessionIdentity } from '@/composables/useSessionIdentity'
-import { useWideScreenLayout } from '@/composables/useWideScreenLayout'
+import { useWideScreenLayout, setChatCollapsed, setActivePane, PANE_RIGHT } from '@/composables/useWideScreenLayout'
 
 /**
  * SessionCreateButton — the header's direct "new session" entry. Creating a
@@ -37,14 +37,22 @@ import { useWideScreenLayout } from '@/composables/useWideScreenLayout'
  * Rendering is gated on `isWideScreen`: on a phone the composer's own "+" is
  * always one tap away and the header is too narrow to spend on a duplicate.
  */
-const { isWideScreen } = useWideScreenLayout()
+const { isWideScreen, chatCollapsed } = useWideScreenLayout()
 const identity = useSessionIdentity()
 const { t } = useI18n()
 // Creating a session is a chat action: if the user is on another tab (files,
-// settings) the new session would otherwise land behind it, unread.
+// settings) the new session would otherwise land behind it, unread. On a wide
+// screen switchTab('chat') early-returns (chat is not a left-column tab), so
+// revealing the pane is the only way the new session becomes visible — kept
+// in split (left pane stays), matching handleSessionSelect's reveal.
 const switchTab = inject<(tab: string) => void>('switchTab')
 
 function goToChat() {
+  if (isWideScreen.value) {
+    if (chatCollapsed.value) setChatCollapsed(false)
+    setActivePane(PANE_RIGHT)
+    return
+  }
   switchTab?.('chat')
 }
 

@@ -34,4 +34,18 @@ describe('session sidebar decouple', () => {
     expect(css).toMatch(/\.main-content\.wide-screen \.content-area > \.split-view\s*\{[^}]*flex:\s*1 1 0/)
     expect(css).toMatch(/\.main-content\.wide-screen \.content-area > \.session-sidebar\s*\{[^}]*flex-shrink:\s*0/)
   })
+
+  it('reveals the chat pane in handleSessionSelect before any guard', () => {
+    const src = readWebFile(APP)
+    const fnStart = src.indexOf('function handleSessionSelect')
+    const body = src.slice(fnStart, src.indexOf('\n}', fnStart))
+    const reveal = body.indexOf('if (isWideScreen.value && chatCollapsed.value)')
+    expect(reveal, 'reveal must exist in handleSessionSelect').toBeGreaterThan(-1)
+    const crossProject = body.indexOf('projectPath && projectPath !== store.state.projectRoot')
+    const alreadyActive = body.indexOf('sessionId && sessionId === sessionIdentity.currentSessionId.value')
+    expect(reveal, 'reveal must precede the cross-project branch').toBeLessThan(crossProject)
+    expect(reveal, 'reveal must precede the already-active guard').toBeLessThan(alreadyActive)
+    expect(body).toContain('setChatCollapsed(false)')
+    expect(body).toContain('setActivePane(PANE_RIGHT)')
+  })
 })
